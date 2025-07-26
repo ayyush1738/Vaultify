@@ -2,7 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-
 :root {
   --font-family: var(--font-brand);
   --foreground-rgb: 0, 0, 0;
@@ -10,12 +9,14 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    
+    /* You can override dark mode font settings here if needed */
   }
 }
 
 @layer base {
   :root {
+    font-family: var(--font-family);
+    /* light mode colors... */
     --background: 0 0% 100%;
     --foreground: 0 0% 3.9%;
     --card: 0 0% 100%;
@@ -42,7 +43,9 @@
     --chart-5: 27 87% 67%;
     --radius: 0.5rem;
   }
+
   .dark {
+    font-family: var(--font-family);
     --background: 0 0% 3.9%;
     --foreground: 0 0% 98%;
     --card: 0 0% 3.9%;
@@ -68,12 +71,11 @@
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
   }
-}
 
-@layer base {
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
   }

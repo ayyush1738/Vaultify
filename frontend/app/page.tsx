@@ -15,6 +15,7 @@ import {
 import Link from 'next/link';
 import { NavbarDemo } from '@/components/layout/Navbar';
 import { Hero } from '@/components/layout/Hero';
+
 export default function HomePage() {
 
   return (

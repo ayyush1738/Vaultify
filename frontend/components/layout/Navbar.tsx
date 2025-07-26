@@ -11,7 +11,7 @@ import {
     MobileNavMenu,
 } from "@/components/ui/resizable-navbar";
 import { useState } from "react";
-import { WalletConnector } from '@/components/wallet-connector';
+import { ConnectButton } from "@rainbow-me/rainbowkit";
 
 export function NavbarDemo() {
     const navItems = [
@@ -42,7 +42,7 @@ export function NavbarDemo() {
                     </div>
                     <NavItems items={navItems} />
                     <div className="flex items-center gap-4 z-50">
-                        <WalletConnector isConnected={isConnected} setIsConnected={setIsConnected} />
+                        <ConnectButton />
                     </div>
                 </NavBody>
 
