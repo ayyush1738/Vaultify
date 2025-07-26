@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
+    "@lottiefiles/dotlottie-react": "^0.14.4",
     "@next/swc-wasm-nodejs": "13.5.1",
     "@radix-ui/react-accordion": "^1.2.0",
     "@radix-ui/react-alert-dialog": "^1.1.1",
@@ -51,6 +52,7 @@
     "eslint": "8.49.0",
     "eslint-config-next": "13.5.1",
     "input-otp": "^1.2.4",
+    "lottie-react": "^2.4.1",
     "lucide-react": "^0.446.0",
     "motion": "^12.23.9",
     "next": "13.5.1",

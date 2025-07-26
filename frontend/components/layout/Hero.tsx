@@ -1,17 +1,23 @@
 'use client'
 
-import { Upload, TrendingUp } from 'lucide-react'
+import { Upload, TrendingUp, Sparkles } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import Loader from '@/components/ui/HomePageModel'
+import Server1 from '@/components/ui/HomePageModel'
+import Eth from '@/components/ui/Eth'
+import Server2 from '../ui/Server2'
 
 export function Hero() {
     return (
-        <section className="relative py-20 px-6 md:px-40">
+        <section className="relative py-12 px-6 md:px-40">
             <div className="absolute inset-0 bg-purple-100 blur-3xl -z-10" />
             <div className="flex flex-col md:flex-row justify-between items-center gap-8">
                 {/* LEFT SIDE - TEXT CONTENT */}
                 <div className="max-w-xl">
+                    <div className="inline-flex items-center space-x-2 bg-gradient-to-r from-purple-500/20 to-blue-500/20 border border-purple-500/30 rounded-full px-4 py-2 text-sm font-medium mb-8">
+                        <Sparkles className="h-4 w-4 text-purple-500" />
+                        <span>Built on Solana Devnet</span>
+                    </div>
                     <h1 className="text-3xl md:text-5xl text-green-900 font-bold mt-12 text-left">
                         Real-world invoices, tokenized.
                     </h1>
@@ -42,8 +48,12 @@ export function Hero() {
                 </div>
 
                 {/* RIGHT SIDE - LOADER */}
-                <div className="mt-12 md:mt-0">
-                    <Loader />
+                <div className="md:mt-0 w-1/2 flex flex-row gap-2 z-0">
+                    <div className='flex-col mb-4 ml-auto'>
+                        <Server1 />
+                        <Server2 />
+                    </div>
+                    <Eth />
                 </div>
             </div>
         </section>
