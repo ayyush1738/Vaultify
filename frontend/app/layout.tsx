@@ -6,7 +6,7 @@ import { Providers } from '@/components/wallet-providers';
 const jakarta = Plus_Jakarta_Sans({
   subsets: ['latin'],
   display: 'swap',
-  weight: ['400', '500', '600', '700'], // Optional: use what you need
+  weight: ['400', '500', '600', '700'], 
 });
 
 export const metadata: Metadata = {

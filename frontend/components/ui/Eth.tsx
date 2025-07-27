@@ -6,7 +6,7 @@ import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 
 const Eth = () => {
   return (
-    <div className="flex justify-center items-center h-full ">
+    <div className="flex justify-center items-center h-full">
       <DotLottieReact
         src="https://lottie.host/960b3c48-eb5e-4193-bcf5-163d291508f2/cMnsPpfCDk.lottie"
         loop

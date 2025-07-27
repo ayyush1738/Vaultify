@@ -8,7 +8,6 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { WalletConnector } from '@/components/wallet-connector';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { 
   ArrowLeft, 
@@ -101,7 +100,6 @@ export default function InvestorDashboard() {
         </div>
         <div className="flex items-center gap-4">
           <ThemeToggle />
-          <WalletConnector isConnected={isConnected} setIsConnected={setIsConnected} />
         </div>
       </nav>
 

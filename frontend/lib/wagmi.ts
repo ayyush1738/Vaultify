@@ -12,7 +12,7 @@ import {
 
 export const config = getDefaultConfig({
   appName: 'My dApp',
-  projectId: 'YOUR_WALLETCONNECT_PROJECT_ID', // ⬅️ Replace with your real ID
+  projectId: '091cfdf5b0df9d7954530bf0bf224197', // ⬅️ Replace with your real ID
   chains: [mainnet, polygon, optimism, arbitrum, base],
   ssr: true,
 });
