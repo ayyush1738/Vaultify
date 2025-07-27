@@ -4,15 +4,19 @@
 import { getDefaultConfig } from '@rainbow-me/rainbowkit';
 import {
   mainnet,
+  sepolia,
   polygon,
   optimism,
   arbitrum,
   base,
 } from 'wagmi/chains';
 
+// ✅ Use NEXT_PUBLIC_ prefix to access env variable in client-side code
+const projectId = process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID as string;
+
 export const config = getDefaultConfig({
   appName: 'My dApp',
-  projectId: '091cfdf5b0df9d7954530bf0bf224197', // ⬅️ Replace with your real ID
-  chains: [mainnet, polygon, optimism, arbitrum, base],
+  projectId, // ✅ Must be a string, and visible to client
+  chains: [mainnet, sepolia, polygon, optimism, arbitrum, base],
   ssr: true,
 });
