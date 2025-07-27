@@ -121,50 +121,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Vault Stats Section */}
-      <section className="px-6 py-20">
-        <div className="max-w-4xl mx-auto">
-          <h2 className="text-4xl font-bold text-center mb-16 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-            Platform Statistics
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {[
-              {
-                icon: DollarSign,
-                title: "Total Value Locked",
-                value: "$2.4M",
-                description: "Locked in vaults"
-              },
-              {
-                icon: FileText,
-                title: "Active Invoices",
-                value: "1,247",
-                description: "Being funded"
-              },
-              {
-                icon: TrendingUp,
-                title: "Average APY",
-                value: "12.4%",
-                description: "Historical average"
-              }
-            ].map((stat, index) => (
-              <Card key={index} className="bg-white/5 backdrop-blur-sm border-white/10 text-center p-6">
-                <CardHeader>
-                  <div className="mx-auto mb-4 p-3 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 w-fit">
-                    <stat.icon className="h-6 w-6 text-white" />
-                  </div>
-                  <CardTitle className="text-white">{stat.title}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-bold text-white mb-2">{stat.value}</div>
-                  <CardDescription className="text-slate-300">{stat.description}</CardDescription>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* Footer */}
       <footer className="px-6 py-12 border-t border-white/10">
         <div className="max-w-4xl mx-auto">
