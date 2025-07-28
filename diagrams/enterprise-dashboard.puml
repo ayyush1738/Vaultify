@@ -1,0 +1,67 @@
+@startuml
+!theme materia
+
+title Vaultify: SME Invoice Minting Flow
+
+autonumber "<b>[0]</b>"
+
+' Define Participants
+actor "SME User" as User
+box "Vaultify Platform" #LightSkyBlue
+    participant "Frontend (Next.js)" as FE
+    participant "Backend (Node.js)" as BE
+end box
+box "External Services" #LightGreen
+    participant "1inch API Stack" as OneInch
+    database "Ethereum Blockchain\n(Smart Contracts)" as Chain
+end box
+
+' === Main Flow: Invoice Upload and Minting ===
+
+User -> FE: Uploads Invoice.pdf
+activate FE
+
+FE -> BE: POST /api/invoices/upload\n(file data + SME address)
+activate BE
+note right of BE
+    **Internal Backend Processing:**
+    1. OCR extracts invoice data.
+    2. Data is validated.
+    3. Invoice is hashed for uniqueness.
+    4. ZK proof of non-membership is generated.
+end note
+
+BE -> OneInch: Build Gasless Transaction\n(via 1inch Web3 Transaction API)
+activate OneInch
+note left of OneInch
+    Payload includes:
+    - Target contract: VaultManager
+    - Function call: createVault(...)
+    - Arguments: invoice metadata + ZK proof
+end note
+
+
+OneInch -> Chain: Relay Signed, Gas-Sponsored Transaction
+activate Chain
+note over Chain
+    **On-Chain Execution:**
+    1. ZKVerifier contract confirms proof.
+    2. VaultManager contract mints InvoiceNFT.
+end note
+
+
+Chain --> OneInch: Transaction Confirmation (Receipt)
+deactivate Chain
+
+OneInch --> BE: Return TX Hash & Status
+deactivate OneInch
+
+note over BE: Update internal database:\nMark invoice as "Pending Funding"
+
+BE --> FE: HTTP 201 Response { success: true, ... }
+deactivate BE
+
+FE -> User: Display "Success!"\n& Update Dashboard UI
+deactivate FE
+
+@enduml

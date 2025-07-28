@@ -4,14 +4,13 @@ import { ethers } from 'ethers';
 import jwt from 'jsonwebtoken';
 import 'dotenv/config';
 import { findUserByWallet, updateUserProfile } from '../models/auth.model.js';
-import db from '../config/dbConnect.js';
+import db from '../config/db.js';
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const nonces = new Map();
 
 // Util: generate login message
 const createLoginMessage = (nonce) => `Sign this message to login. Nonce: ${nonce}`;
-
 
 // LOGIN (Enterprise)
 export const enterpriseLogin = async (req, res) => {
@@ -24,7 +23,7 @@ export const enterpriseLogin = async (req, res) => {
 
     try {
         const message = createLoginMessage(nonce);
-        const recoveredAddress = ethers.utils.verifyMessage(message, signature);
+        const recoveredAddress = ethers.verifyMessage(message, signature);
 
         if (recoveredAddress.toLowerCase() !== wallet_address.toLowerCase()) {
             return res.status(401).json({ message: 'Invalid signature' });

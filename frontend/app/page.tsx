@@ -7,8 +7,6 @@ import {
   Database, 
   Coins, 
   TrendingUp, 
-  Users, 
-  DollarSign,
   Github,
   ExternalLink
 } from 'lucide-react';

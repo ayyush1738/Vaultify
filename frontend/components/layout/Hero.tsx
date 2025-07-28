@@ -47,7 +47,8 @@ export function Hero() {
             const { nonce } = await nonceRes.json();
 
             setStatus('Signing message...');
-            const signature = await signMessageAsync({ message: nonce });
+            const loginMessage = `Sign this message to login. Nonce: ${nonce}`;
+            const signature = await signMessageAsync({ message: loginMessage });
 
             setStatus('Verifying credentials...');
 
@@ -69,10 +70,10 @@ export function Hero() {
                 return;
             }
 
-            if (data.role !== 'enterprise') {
-                setStatus('Access denied: Only enterprises can login here');
-                return;
-            }
+            // if (data.role !== 'enterprise') {
+            //     setStatus('Access denied: Only enterprises can login here');
+            //     return;
+            // }
 
             setStatus('Login successful! Redirecting...');
             localStorage.setItem('jwt', data.token);
@@ -112,20 +113,20 @@ export function Hero() {
                         Where unpaid invoices become unlocked opportunities
                     </motion.h1>
 
-                    <motion.p
+                    <motion.div
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.2, duration: 0.6 }}
                         className="text-lg md:text-xl text-slate-500 mb-4 text-left"
                     >
                         Fund invoices. Earn DeFi yield.
-                        <p className="text-sm mt-4 text-black">
+                        <section className="text-sm mt-4 text-black">
                             Are you an Investor?
-                            <Link href="" className="bg-blue-400 rounded-2xl p-2 ml-2 hover:bg-blue-300 text-xs">
+                            {/* <Link href="" className="bg-blue-400 rounded-2xl p-2 ml-2 hover:bg-blue-300 text-xs">
                                 Click here
-                            </Link>
-                        </p>
-                    </motion.p>
+                            </Link> */}
+                        </section>
+                    </motion.div>
 
                     <motion.div
                         className="flex flex-row gap-4 text-left"

@@ -13,11 +13,7 @@ import {
   ArrowLeft, 
   Wallet, 
   TrendingUp, 
-  DollarSign, 
-  FileText,
-  Clock,
-  CheckCircle,
-  AlertCircle
+  DollarSign
 } from 'lucide-react';
 import Link from 'next/link';
 

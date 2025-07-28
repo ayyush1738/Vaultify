@@ -1,5 +1,5 @@
 // auth.model.js
-import db from '../config/dbConnect.js';
+import db from '../config/db.js';
 
 export const findUserByWallet = async (wallet_address, callback) => {
     try {
