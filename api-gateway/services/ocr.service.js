@@ -15,7 +15,6 @@ export async function parseInvoiceWithOCR(file) {
     }
 
     const formData = new FormData();
-    // The field name 'document' or 'file' depends on your OCR API's documentation.
     formData.append('document', file.buffer, {
         filename: file.originalname,
         contentType: file.mimetype,
@@ -23,37 +22,44 @@ export async function parseInvoiceWithOCR(file) {
 
     try {
         console.log(`Sending file to OCR service at ${ocrApiUrl}...`);
-        
+
         const response = await axios.post(ocrApiUrl, formData, {
             headers: {
-                ...formData.getHeaders(), // Important for multipart/form-data
-                'Authorization': `Bearer ${ocrApiKey}`, // Or 'X-API-KEY', etc. - check your API docs
+                ...formData.getHeaders(),
+                'Authorization': `Bearer ${ocrApiKey}`,
             },
-            // The OCR service might return a lot of data
-            maxBodyLength: Infinity, 
+            maxBodyLength: Infinity,
         });
 
-        console.log("✅ Successfully received data from OCR service.");
+        const rawData = response.data;
 
-        // --- IMPORTANT ---
-        // The structure of response.data depends entirely on your OCR provider.
-        // You MUST adapt the return object to match what your API sends back.
-        // Here is an example of mapping the response to a standardized format for your app.
-        
-        const rawData = response.data; // e.g., { "invoice_id": "INV-123", "total_amount": 5000, "due_date": "2025-10-15", ... }
+        // Example of expected structure, adapt this to your actual OCR provider response
+        const lineItems = rawData.items || [];
+
+        const totalCost = lineItems.reduce((acc, item) => {
+            const quantity = parseFloat(item.quantity || 0);
+            const unitPrice = parseFloat(item.unit_price || 0);
+            return acc + (quantity * unitPrice);
+        }, 0);
 
         const standardizedData = {
             invoiceNumber: rawData.invoice_id || null,
-            amount: rawData.total_amount || 0,
+            amount: rawData.total_amount || totalCost,
             dueDate: rawData.due_date || null,
+            issueDate: rawData.issue_date || null,
             customerName: rawData.customer_name || 'N/A',
-            // Add any other fields you need
+            customerAddress: rawData.customer_address || '',
+            lineItems: lineItems,
+            tax: rawData.tax || 0,
+            currency: rawData.currency || 'USD',
+            notes: rawData.notes || '',
+            totalCost,
         };
 
         return standardizedData;
 
     } catch (error) {
         console.error("❌ OCR API Error:", error.response ? error.response.data : error.message);
-        throw new Error("Failed to parse the invoice document. Please try a different file or contact support.");
+        throw new Error("Failed to parse the invoice document.");
     }
 }
