@@ -1,4 +1,3 @@
-// dbConnect.js
 import { Pool } from 'pg';
 import 'dotenv/config';
 
@@ -12,7 +11,7 @@ const initDb = async () => {
     console.log('✅ Connected to the PostgreSQL database.');
 
     const createTables = `
-      -- Users table remains the same
+      -- Users table can be used for associating SMEs with a username or other profile data
       CREATE TABLE IF NOT EXISTS users (
           id SERIAL PRIMARY KEY,
           username TEXT UNIQUE,
@@ -20,24 +19,24 @@ const initDb = async () => {
           role TEXT CHECK(role IN ('investor', 'enterprise')) NOT NULL DEFAULT 'investor'
       );
 
-      -- Invoices table REVAMPED for EVM and Vaultify structure
+      -- Invoices table as per your specification
       CREATE TABLE IF NOT EXISTS invoices (
           id SERIAL PRIMARY KEY,
-          sme_address TEXT NOT NULL,         -- The wallet address of the SME
-          chain_id INTEGER NOT NULL,         -- The chain where the vault was minted (e.g., 1, 137)
+          sme_address TEXT NOT NULL,
+          chain_id INTEGER NOT NULL,
           
           -- On-Chain Data
-          vault_contract_address TEXT,       -- Address of the deployed InvoiceNFT contract
-          token_id BIGINT,                   -- The unique ID of the minted ERC721 token
-          tx_hash TEXT UNIQUE,               -- The hash of the minting transaction
+          vault_contract_address TEXT,
+          token_id BIGINT,
+          tx_hash TEXT UNIQUE,
           
           -- Off-Chain Metadata
-          ipfs_cid TEXT UNIQUE NOT NULL,     -- The IPFS CID from the OCR service
-          invoice_amount NUMERIC NOT NULL,   -- The face value of the invoice
-          funding_goal NUMERIC NOT NULL,     -- The amount the SME wants to receive
+          ipfs_cid TEXT UNIQUE NOT NULL,
+          invoice_amount NUMERIC NOT NULL,
+          funding_goal NUMERIC NOT NULL,
           
           -- Status
-          status TEXT DEFAULT 'Pending Funding', -- e.g., 'Pending Funding', 'Funded', 'Repaid'
+          status TEXT DEFAULT 'Pending Funding' NOT NULL,
           created_at TIMESTAMPTZ DEFAULT NOW()
       );
     `;
@@ -47,9 +46,15 @@ const initDb = async () => {
     console.log('✅ Tables ensured for Vaultify EVM architecture.');
   } catch (err) {
     console.error('❌ Database initialization error:', err.stack);
+    // In a real app, you might want to exit if the DB can't be initialized
+    // process.exit(1); 
   }
 };
 
+// Run the initialization
 initDb();
 
-export default pool;
+// Export a dedicated query function that uses the pool
+export function query(text, params) {
+  return pool.query(text, params);
+}

@@ -9,10 +9,8 @@ import db from '../config/db.js';
 const JWT_SECRET = process.env.JWT_SECRET;
 const nonces = new Map();
 
-// Util: generate login message
 const createLoginMessage = (nonce) => `Sign this message to login. Nonce: ${nonce}`;
 
-// LOGIN (Enterprise)
 export const enterpriseLogin = async (req, res) => {
     const { wallet_address, signature, nonce, username } = req.body;
     const storedNonce = nonces.get(wallet_address);
@@ -75,7 +73,6 @@ export const enterpriseLogin = async (req, res) => {
     }
 };
 
-// NONCE GENERATION
 export const getNonce = (req, res) => {
     const { wallet_address } = req.query;
     if (!wallet_address) return res.status(400).json({ message: 'Missing wallet_address' });

@@ -1,9 +1,12 @@
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
-
 import authRouter from './routes/auth.routes.js';
 import invoiceRouter from './routes/invoice.routes.js'
+import { initBlockchain } from './services/blockchainService.js';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 8001;
@@ -16,10 +19,17 @@ app.use(cors({
     credentials: true,
 }));
 
+try {
+    initBlockchain();
+} catch (error) {
+    console.error("Failed to initialize application:", error);
+    process.exit(1); // Exit if essential services can't start
+}
+
 // Routes
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/enterprise', invoiceRouter);
 
-app.listen(8000, () => {
+app.listen(PORT, () => {
     console.log(`Server is running on port: ${PORT}`);
 });

@@ -14,6 +14,17 @@ import json
 logging.basicConfig(level=logging.INFO)
 app = FastAPI()
 
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Or set to your frontend URL like ["http://localhost:3000"]
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
 class OCRRequest(BaseModel):
     file_b64: str
 
