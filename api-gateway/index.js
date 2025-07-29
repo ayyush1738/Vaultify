@@ -3,7 +3,7 @@ import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import authRouter from './routes/auth.routes.js';
 import invoiceRouter from './routes/invoice.routes.js'
-import { initBlockchain } from './services/blockchainService.js';
+import { initBlockchain } from './services/blockchain.service.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -23,7 +23,7 @@ try {
     initBlockchain();
 } catch (error) {
     console.error("Failed to initialize application:", error);
-    process.exit(1); // Exit if essential services can't start
+    process.exit(1); 
 }
 
 // Routes

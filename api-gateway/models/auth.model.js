@@ -1,9 +1,9 @@
 // auth.model.js
-import db from '../config/db.js';
+import { query } from '../config/db.js';
 
 export const findUserByWallet = async (wallet_address, callback) => {
     try {
-        const result = await db.query("SELECT * FROM users WHERE wallet_address = $1", [wallet_address]);
+        const result = await query("SELECT * FROM users WHERE wallet_address = $1", [wallet_address]);
         const user = result.rows[0];
         if (!user) return callback("User not found", null);
         return callback(null, user);
@@ -18,7 +18,7 @@ export const updateUserProfile = async (wallet_address, username, email, role, c
         const allowedRoles = ['investor', 'enterprise'];
         if (!allowedRoles.includes(role)) return callback("Invalid role", null);
 
-        await db.query(
+        await query(
             "UPDATE users SET username = $1, email = $2, role = $3 WHERE wallet_address = $4",
             [username, email, role, wallet_address]
         );

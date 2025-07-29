@@ -1,7 +1,7 @@
 import * as ipfsService from '../services/ipfs.service.js';
 import * as blockchainService from '../services/blockchain.service.js';
 import * as dbService from '../services/db.service.js';
-import * as ocrService from '../services/ocrService.js';
+import * as ocrService from '../services/ocr.service.js';
 
 export const mintInvoice = async (req, res) => {
     try {

@@ -1,5 +1,7 @@
+# app/main.py
 from fastapi import FastAPI, HTTPException, status
 from pydantic import BaseModel
+from typing import Optional, List
 import pytesseract
 from pdf2image import convert_from_bytes
 import base64
@@ -9,54 +11,56 @@ import requests
 import tempfile
 import os
 import re
-import json 
+from dotenv import load_dotenv
+load_dotenv()  # loads .env into this process
 
-logging.basicConfig(level=logging.INFO)
-app = FastAPI()
 
-from fastapi.middleware.cors import CORSMiddleware
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+logger = logging.getLogger(__name__)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Or set to your frontend URL like ["http://localhost:3000"]
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
+app = FastAPI(title="OCR + IPFS Uploader")
 
 class OCRRequest(BaseModel):
     file_b64: str
 
-TOTAL_KEYWORDS = [
+TOTAL_KEYWORDS: List[str] = [
     "total due", "total amount", "net amount", "amount payable",
     "invoice total", "total sum", "balance due", "total to pay",
-    "grand total", "amount to pay", "net total"
+    "grand total", "amount to pay", "net total", "subtotal", "total"
 ]
 
+CURRENCY_PAT = r"(?:rs\.?|inr|₹|\$|usd|eur|£|gbp)?\s*([\d,]+\.\d{2})"
+
+def _strip_data_url_prefix(data: str) -> str:
+    """
+    Supports inputs like:
+    data:application/pdf;base64,JVBERi0xLjQKJ...
+    """
+    if "," in data and ";base64" in data[:64]:
+        return data.split(",", 1)[1]
+    return data
+
 def extract_likely_total(text: str) -> str:
-    candidates = []
+    candidates: List[float] = []
 
     for line in text.splitlines():
-        lower_line = line.lower()
-        # Look for "total" variants manually
-        if "total" in lower_line or any(k in lower_line for k in TOTAL_KEYWORDS):
+        lower_line = line.lower().strip()
+        if any(k in lower_line for k in TOTAL_KEYWORDS):
             print(f"🔍 Matched line: {line}")
-            # Try to match INR, Rs., ₹, or plain float
-            matches = re.findall(r"(?:rs\.?|inr|₹|$)?\s*([\d,]+\.\d{2})", lower_line)
+            matches = re.findall(CURRENCY_PAT, lower_line)
             for amt in matches:
                 try:
                     candidates.append(float(amt.replace(",", "")))
-                except:
+                except Exception:
                     continue
 
+    # Fallback: pick the largest numeric with 2 decimals anywhere
     if not candidates:
-        # Fallback: try getting the largest float-like value in entire doc
         matches = re.findall(r"([\d,]+\.\d{2})", text)
         for amt in matches:
             try:
                 candidates.append(float(amt.replace(",", "")))
-            except:
+            except Exception:
                 continue
 
     if candidates:
@@ -66,79 +70,155 @@ def extract_likely_total(text: str) -> str:
 
     return "Not Found"
 
+def upload_to_pinata(file_path: str) -> str:
+    """
+    Uploads a file to Pinata using either:
+      - JWT (recommended):   Authorization: Bearer <PINATA_JWT>
+      - API key + secret:    pinata_api_key / pinata_secret_api_key
+    Returns the CID (IpfsHash).
+    """
+    PINATA_JWT = os.getenv("PINATA_JWT")
+    PINATA_API_KEY = os.getenv("PINATA_API_KEY")
+    PINATA_API_SECRET = os.getenv("PINATA_API_SECRET")
 
+    if not PINATA_JWT and not (PINATA_API_KEY and PINATA_API_SECRET):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Pinata credentials are missing. Set PINATA_JWT or PINATA_API_KEY + PINATA_API_SECRET."
+        )
+
+    headers = {}
+    if PINATA_JWT:
+        headers["Authorization"] = f"Bearer {PINATA_JWT}"
+        logger.info("Using Pinata JWT for authentication.")
+    else:
+        headers["pinata_api_key"] = PINATA_API_KEY  # type: ignore[arg-type]
+        headers["pinata_secret_api_key"] = PINATA_API_SECRET  # type: ignore[arg-type]
+        logger.info("Using Pinata API key/secret for authentication.")
+
+    url = "https://api.pinata.cloud/pinning/pinFileToIPFS"  # NOTE: use API host, not gateway
+    with open(file_path, "rb") as f:
+        files = {"file": (os.path.basename(file_path), f, "application/pdf")}
+        try:
+            resp = requests.post(url, files=files, headers=headers, timeout=60)
+            if resp.status_code == 401:
+                # Auth error is common; surface clearly
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Pinata auth failed (401). Check JWT scope or API key/secret."
+                )
+            resp.raise_for_status()
+        except requests.HTTPError as http_err:
+            # Bubble up status code + body for quick debugging
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Pinata upload failed: {resp.status_code} {resp.text}"
+            ) from http_err
+        except requests.RequestException as req_err:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Network error talking to Pinata: {req_err}"
+            ) from req_err
+
+    data = resp.json()
+    cid = data.get("IpfsHash")
+    if not cid:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Pinata response missing IpfsHash: {data}"
+        )
+    logger.info(f"✅ Uploaded to IPFS: {cid}")
+    return cid
 
 @app.post("/analyze")
 async def analyze(req: OCRRequest):
+    temp_pdf_path: Optional[str] = None
     try:
-        content = base64.b64decode(req.file_b64)
-        images = convert_from_bytes(content)
+        # Decode base64 PDF content
+        b64 = _strip_data_url_prefix(req.file_b64)
+        try:
+            content = base64.b64decode(b64, validate=True)
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid base64 input. Ensure you send a base64-encoded PDF."
+            )
+
+        # Convert PDF to images for OCR
+        try:
+            images = convert_from_bytes(content)
+        except Exception as conv_err:
+            # Typical cause on Windows: missing Poppler utilities
+            logger.error(f"PDF->Image conversion failed: {conv_err}")
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Failed to read PDF pages. Ensure Poppler is installed and available. {conv_err}"
+            )
+
         if not images:
-            raise ValueError("No pages found in the PDF.")
-            
-        text = "".join([pytesseract.image_to_string(img) for img in images])
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="No pages found in the PDF."
+            )
+
+        # Run OCR on all pages
+        try:
+            # If you need a specific Tesseract path on Windows:
+            # pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+            text = "".join(pytesseract.image_to_string(img) for img in images)
+        except Exception as ocr_err:
+            logger.error(f"OCR extraction failed: {ocr_err}")
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"OCR failed. Ensure Tesseract is installed and on PATH. {ocr_err}"
+            )
+
+        if not text.strip():
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="OCR did not extract any text."
+            )
+
+        # Extract total amount
         total_amount = extract_likely_total(text)
 
+        # Save PDF to a temp file for upload
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
             temp_pdf.write(content)
             temp_pdf_path = temp_pdf.name
 
-        PINATA_API_KEY = os.getenv("PINATA_API_KEY")
-        PINATA_API_SECRET = os.getenv("PINATA_API_SECRET")
+        # Upload to Pinata (correct API host; not gateway)
+        cid = upload_to_pinata(temp_pdf_path)
 
-        # === STEP 1: UPLOAD THE PDF (No changes here) ===
-        pdf_cid = ""
-        with open(temp_pdf_path, 'rb') as f:
-            files = {'file': (os.path.basename(temp_pdf_path), f)}
-            headers = {'pinata_api_key': PINATA_API_KEY, 'pinata_secret_api_key': PINATA_API_SECRET}
-            response = requests.post('https://api.pinata.cloud/pinning/pinFileToIPFS', files=files, headers=headers)
-            response.raise_for_status()
-            pdf_cid = response.json()['IpfsHash']
-            print(f"✅ Uploaded PDF to IPFS with CID: {pdf_cid}")
+        # Optionally compose a gateway URL for convenience
+        gateway_subdomain = os.getenv("PINATA_GATEWAY_SUBDOMAIN", "").strip()
+        gateway_url = (
+            f"https://{gateway_subdomain}.mypinata.cloud/ipfs/{cid}"
+            if gateway_subdomain
+            else f"https://gateway.pinata.cloud/ipfs/{cid}"
+        )
 
-        os.remove(temp_pdf_path)
-
-        # === STEP 2: CREATE AND UPLOAD THE JSON METADATA (New Block) ===
-        print("✅ Creating JSON metadata...")
-        metadata = {
-            "name": f"Invoice (Amount: {total_amount})",
-            "description": "A tokenized invoice managed by Vaultify. This NFT represents a claim on future cash flows.",
-            # The 'image' field is what OpenSea and others use to display the content.
-            # We point it to the PDF we just uploaded.
-            "image": f"ipfs://{pdf_cid}", 
-            "attributes": [
-                {
-                    "trait_type": "Invoice Amount",
-                    "value": total_amount
-                },
-                {
-                    "trait_type": "Status",
-                    "value": "Pending Funding"
-                }
-                # You can add more attributes here later (e.g., due date, customer)
-            ]
-        }
-        
-        # Pin the JSON metadata to Pinata
-        json_headers = {
-            'pinata_api_key': PINATA_API_KEY,
-            'pinata_secret_api_key': PINATA_API_SECRET,
-            'Content-Type': 'application/json'
-        }
-        response = requests.post('https://api.pinata.cloud/pinning/pinJSONToIPFS', data=json.dumps(metadata), headers=json_headers)
-        response.raise_for_status()
-        metadata_cid = response.json()['IpfsHash']
-        print(f"✅ Uploaded JSON Metadata to IPFS with CID: {metadata_cid}")
-
-
-        # === STEP 3: RETURN THE METADATA CID ===
-        # The Vaultify backend only needs the final metadata CID.
         return {
+            "text": text,
             "total_amount": total_amount,
-            "cid": metadata_cid # <-- Return the METADATA's CID, not the PDF's
+            "cid": cid,
+            "url": gateway_url
         }
 
+    except HTTPException:
+        # Already meaningful; just re-raise
+        raise
     except Exception as e:
-        logging.error(f"OCR failed: {e}")
+        logger.error(f"OCR pipeline failed: {e}")
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"OCR error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"OCR error: {str(e)}"
+        )
+    finally:
+        # Cleanup temp file if created
+        if temp_pdf_path and os.path.exists(temp_pdf_path):
+            try:
+                os.remove(temp_pdf_path)
+            except Exception as _:
+                pass

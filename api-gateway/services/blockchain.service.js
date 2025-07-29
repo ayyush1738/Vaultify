@@ -1,5 +1,5 @@
 import { ethers } from 'ethers';
-import vaultManagerAbi from '../abi/VaultManager.json' assert { type: 'json' };
+import vaultManagerAbi from '../config/vaultManager.js';
 import { TOKENS } from '../config/supportedTokens.js';
 
 let provider;
@@ -15,7 +15,7 @@ export function initBlockchain() {
         throw new Error("Missing blockchain environment variables in .env");
     }
 
-    provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+    provider = new ethers.JsonRpcProvider(rpcUrl);
     signer = new ethers.Wallet(privateKey, provider);
 
     vaultManagerContract = new ethers.Contract(contractAddress, vaultManagerAbi, signer);
@@ -33,8 +33,8 @@ export async function mintInvoiceOnChain(data) {
     const tx = await vaultManagerContract.mintInvoice(
         data.smeAddress,
         tokenInfo.address,
-        ethers.utils.parseUnits(fundingAmount.toFixed(tokenInfo.decimals), tokenInfo.decimals),
-        ethers.utils.parseUnits(repaymentAmount.toFixed(tokenInfo.decimals), tokenInfo.decimals),
+        ethers.parseUnits(fundingAmount.toFixed(tokenInfo.decimals), tokenInfo.decimals),
+        ethers.parseUnits(repaymentAmount.toFixed(tokenInfo.decimals), tokenInfo.decimals),
         Math.floor(new Date(data.dueDate).getTime() / 1000),
         `ipfs://${data.tokenURI}`
     );

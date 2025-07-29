@@ -1,4 +1,4 @@
-import { query } from '../db.js';
+import { query } from '../config/db.js';
 
 /**
  * Fetch all invoices associated with a specific SME address.

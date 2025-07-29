@@ -4,7 +4,7 @@ import { ethers } from 'ethers';
 import jwt from 'jsonwebtoken';
 import 'dotenv/config';
 import { findUserByWallet, updateUserProfile } from '../models/auth.model.js';
-import db from '../config/db.js';
+import {query} from '../config/db.js';
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const nonces = new Map();
@@ -33,7 +33,7 @@ export const enterpriseLogin = async (req, res) => {
             if (!user) {
                 if (!username) return res.status(400).json({ message: 'Organization name is required' });
 
-                await db.query(
+                await query(
                     "INSERT INTO users (wallet_address, role, username) VALUES ($1, $2, $3)",
                     [wallet_address, 'enterprise', username]
                 );
