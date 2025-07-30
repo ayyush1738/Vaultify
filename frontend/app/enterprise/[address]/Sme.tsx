@@ -6,12 +6,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { useAccount } from 'wagmi';
+import { useAccount, useChainId } from 'wagmi';
 import { ArrowLeft, FileText, CheckCircle, Clock, Loader2, AlertCircle, Inbox } from 'lucide-react';
 import Link from 'next/link';
 import axios from 'axios';
+import ExtractedMetadata from '../components/ExtractedMetadata';
+import InvoiceTableCard from '../components/InvoiceTableCard';
 
 // Types
 interface Invoice {
@@ -40,29 +41,23 @@ const mockInvoices: Invoice[] = [
 
 export default function SMEDashboard() {
     const { address, isConnected } = useAccount();
-
-    // Upload/minting state
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [extractedMetadata, setExtractedMetadata] = useState<any>(null);
     const [preferredToken, setPreferredToken] = useState(supportedTokens[0]);
     const [isMinting, setIsMinting] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    
-
-    // Invoice list state
     const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [isLoadingInvoices, setIsLoadingInvoices] = useState(true);
     // Consider it "ready" only if required fields exist AND customerName is non-empty
     const isReadyToMint =
         !!extractedMetadata &&
-        String(extractedMetadata.amount || '').replace(/[^0-9.]/g, '').length > 0 &&
-        !!extractedMetadata.dueDate &&
-        !!(extractedMetadata.customerName && extractedMetadata.customerName.trim().length > 0);
+        String(extractedMetadata.amount || '').replace(/[^0-9.]/g, '').length > 0;
+
+    const chainId = useChainId();
 
 
-    const API_BASE = process.env.NEXT_PUBLIC_API_URL || ''; // e.g., "http://localhost:8001"
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL;
 
-    // Fetch invoices (mock for now)
     useEffect(() => {
         const fetchInvoices = async () => {
             if (!isConnected || !address) {
@@ -90,7 +85,6 @@ export default function SMEDashboard() {
         fetchInvoices();
     }, [isConnected, address, API_BASE]);
 
-    // ✅ Correct: accept change event, set file, call OCR with "file"
     const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
         try {
             setError(null);
@@ -105,8 +99,7 @@ export default function SMEDashboard() {
             }
 
             const formData = new FormData();
-            formData.append('file', file); // 👈 MUST match upload.single('file')
-
+            formData.append('file', file);
             const token = (typeof window !== 'undefined' && localStorage.getItem('jwt')) || '';
             const res = await axios.post(`${API_BASE}/api/v1/enterprise/parse`, formData, {
                 headers: {
@@ -115,9 +108,6 @@ export default function SMEDashboard() {
                 },
                 maxBodyLength: Infinity,
             });
-
-            // OCR standardized fields expected from your OCR service
-            // { invoiceNumber, amount, dueDate, issueDate, customerName, ... }
             setExtractedMetadata(res.data);
         } catch (err: any) {
             console.error('OCR parse failed:', err?.response?.data || err?.message || err);
@@ -126,7 +116,6 @@ export default function SMEDashboard() {
     };
 
 
-    // ✅ Correct: post to the real mint endpoint with exact field names + "file"
     const handleMintNFT = async () => {
         if (!selectedFile || !extractedMetadata || !address) {
             setError('Please select a file, parse it, and connect your wallet to mint.');
@@ -136,7 +125,6 @@ export default function SMEDashboard() {
             setError('NEXT_PUBLIC_API_URL is not set.');
             return;
         }
-
         setIsMinting(true);
         setError(null);
 
@@ -149,10 +137,9 @@ export default function SMEDashboard() {
             }
 
             const formData = new FormData();
-            formData.append('file', selectedFile); // 👈 required by multer
+            formData.append('file', selectedFile); 
             formData.append('smeAddress', address);
-            formData.append('chainId', String(process.env.NEXT_PUBLIC_CHAIN_ID || '11155111')); // example: Sepolia
-            // Normalize amount to number (OCR might give "$5,000.00")
+            formData.append('chainId', String(chainId)); 
             const normalizedAmount = String(extractedMetadata.amount || '')
                 .replace(/[^0-9.]/g, '');
             formData.append('invoiceAmount', normalizedAmount || '0');
@@ -160,8 +147,10 @@ export default function SMEDashboard() {
             formData.append('customerName', customerName);
             formData.append('preferredTokenSymbol', preferredToken.symbol);
 
+            console.log(preferredToken)
+
             const token = (typeof window !== 'undefined' && localStorage.getItem('jwt')) || '';
-            const res = await axios.post(`${API_BASE}/api/v1/enterprise/`, formData, {
+            const res = await axios.post(`${API_BASE}/api/v1/enterprise/mint`, formData, {
                 headers: {
                     Authorization: `Bearer ${token}`,
                     'Content-Type': 'multipart/form-data',
@@ -169,7 +158,6 @@ export default function SMEDashboard() {
                 maxBodyLength: Infinity,
             });
 
-            // Success → optimistic UI update (optional: use returned DB row)
             const newInvoice: Invoice = {
                 id: extractedMetadata.invoiceNumber || `INV-${Date.now()}`,
                 fileName: selectedFile.name,
@@ -294,142 +282,20 @@ export default function SMEDashboard() {
                             </Button>
                         </CardContent>
                     </Card>
-
-                    {/* --- Metadata Preview --- */}
-                    <Card className="lg:col-span-2 bg-white/5 backdrop-blur-sm border-white/10">
-                        <CardHeader>
-                            <CardTitle>Metadata Preview</CardTitle>
-                            <CardDescription className="text-slate-400">Verify extracted data before minting.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            {extractedMetadata ? (
-                                <div className="space-y-4 text-sm">
-                                    <div className="flex justify-between items-center">
-                                        <Label className="text-slate-400">Invoice Number</Label>
-                                        <p className="font-mono text-white">{extractedMetadata.invoiceNumber}</p>
-                                    </div>
-                                    <div className="flex justify-between items-center">
-                                        <Label className="text-slate-400">Amount</Label>
-                                        <p className="font-medium text-lg text-green-400">{String(extractedMetadata.amount)}</p>
-                                    </div>
-                                    <div className="flex justify-between items-center">
-                                        <Label className="text-slate-400">Due Date</Label>
-                                        <p className="text-white">{extractedMetadata.dueDate}</p>
-                                    </div>
-                                    {/* Customer (editable) */}
-                                    <div className="flex items-center gap-3">
-                                        <Label className="text-slate-400 min-w-24">Customer</Label>
-                                        <Input
-                                            value={extractedMetadata.customerName || ''}
-                                            onChange={(e) =>
-                                                setExtractedMetadata((prev: any) => ({
-                                                    ...prev,
-                                                    customerName: e.target.value,
-                                                }))
-                                            }
-                                            placeholder="Enter customer name"
-                                            className="bg-slate-800 border-white/20 text-white"
-                                        />
-                                    </div>
-
-
-                                    {isReadyToMint ? (
-                                        <div className="pt-2 mt-2 border-t border-white/10 flex justify-between items-center text-green-400">
-                                            <CheckCircle className="h-5 w-5" />
-                                            <p className="font-medium">Ready to Mint</p>
-                                        </div>
-                                    ) : (
-                                        <div className="pt-2 mt-2 border-t border-white/10 flex justify-between items-center text-yellow-400">
-                                            <AlertCircle className="h-5 w-5" />
-                                            <p className="font-medium">Enter the customer name to continue</p>
-                                        </div>
-                                    )}
-
-                                </div>
-                            ) : (
-                                <div className="text-center py-10 text-slate-500">
-                                    {selectedFile ? (
-                                        <div className="flex flex-col items-center gap-2">
-                                            <Clock className="h-8 w-8 animate-spin" />
-                                            <p>Extracting metadata...</p>
-                                        </div>
-                                    ) : (
-                                        <div className="flex flex-col items-center gap-2">
-                                            <FileText className="h-8 w-8" />
-                                            <p>Upload an invoice to see a preview</p>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
+                    <ExtractedMetadata
+                        extractedMetadata={extractedMetadata}
+                        selectedFile={selectedFile}
+                        isReadyToMint={isReadyToMint}
+                        setExtractedMetadata={setExtractedMetadata}
+                    />
                 </div>
 
-                {/* --- Invoice List --- */}
-                <Card className="bg-white/5 backdrop-blur-sm border-white/10">
-                    <CardHeader>
-                        <CardTitle>My Tokenized Invoices</CardTitle>
-                        <CardDescription className="text-slate-400">A list of your on-chain invoices.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <Table>
-                            <TableHeader>
-                                <TableRow className="border-white/10">
-                                    <TableHead className="text-white">Invoice ID</TableHead>
-                                    <TableHead className="text-white">Customer</TableHead>
-                                    <TableHead className="text-white text-right">Amount</TableHead>
-                                    <TableHead className="text-white text-center">Status</TableHead>
-                                    <TableHead className="text-white text-right">Due Date</TableHead>
-                                    <TableHead className="text-white text-center">Actions</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {isLoadingInvoices ? (
-                                    Array.from({ length: 3 }).map((_, i) => (
-                                        <TableRow key={i} className="border-white/10 animate-pulse">
-                                            <TableCell><div className="h-4 bg-slate-700 rounded w-20" /></TableCell>
-                                            <TableCell><div className="h-4 bg-slate-700 rounded w-24" /></TableCell>
-                                            <TableCell className="text-right"><div className="h-4 bg-slate-700 rounded w-16 ml-auto" /></TableCell>
-                                            <TableCell className="text-center"><div className="h-6 bg-slate-700 rounded w-20 mx-auto" /></TableCell>
-                                            <TableCell className="text-right"><div className="h-4 bg-slate-700 rounded w-24 ml-auto" /></TableCell>
-                                            <TableCell className="text-center"><div className="h-8 bg-slate-700 rounded w-20 mx-auto" /></TableCell>
-                                        </TableRow>
-                                    ))
-                                ) : invoices.length > 0 ? (
-                                    invoices.map((invoice) => (
-                                        <TableRow key={invoice.id} className="border-white/10 hover:bg-white/5">
-                                            <TableCell className="font-mono text-slate-300">{invoice.id}</TableCell>
-                                            <TableCell className="font-medium">{invoice.customer}</TableCell>
-                                            <TableCell className="text-right font-medium text-green-400">{invoice.amount}</TableCell>
-                                            <TableCell className="text-center">{getStatusBadge(invoice.status)}</TableCell>
-                                            <TableCell className="text-right text-slate-300">{invoice.dueDate}</TableCell>
-                                            <TableCell className="text-center">
-                                                {invoice.status === 'Funded' && (
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        className="border-green-500/50 bg-green-500/10 text-green-400 hover:bg-green-500/20 hover:text-green-300"
-                                                        onClick={() => handleRepay(invoice.id)}
-                                                    >
-                                                        Repay
-                                                    </Button>
-                                                )}
-                                            </TableCell>
-                                        </TableRow>
-                                    ))
-                                ) : (
-                                    <TableRow>
-                                        <TableCell colSpan={6} className="text-center py-12 text-slate-500">
-                                            <Inbox className="h-12 w-12 mx-auto mb-4" />
-                                            No invoices found.
-                                            {!isConnected && ' Please connect your wallet to view your invoices.'}
-                                        </TableCell>
-                                    </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
-                    </CardContent>
-                </Card>
+                <InvoiceTableCard
+                    invoices={invoices}
+                    isLoading={isLoadingInvoices}
+                    onRepay={handleRepay}
+                />
+
             </main>
         </div>
     );

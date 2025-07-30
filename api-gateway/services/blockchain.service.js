@@ -1,7 +1,6 @@
 import { ethers } from 'ethers';
 import vaultManagerAbi from '../config/vaultManager.js';
-import { TOKENS } from '../config/supportedTokens.js';
-
+import { getSupportedTokens } from './token.service.js';
 let provider;
 let signer;
 let vaultManagerContract;
@@ -20,11 +19,12 @@ export function initBlockchain() {
 
     vaultManagerContract = new ethers.Contract(contractAddress, vaultManagerAbi, signer);
 
-    console.log("🔗 Blockchain initialized. VaultManager address:", contractAddress);
+    console.log("Blockchain initialized. VaultManager address:", contractAddress);
 }
 
 export async function mintInvoiceOnChain(data) {
-    const tokenInfo = TOKENS[data.preferredTokenSymbol];
+    const tokenInfo = getSupportedTokens();
+    console.log(tokenInfo)
     if (!tokenInfo) throw new Error(`Unsupported token: ${data.preferredTokenSymbol}`);
 
     const fundingAmount = parseFloat(data.invoiceAmount) * 0.98;

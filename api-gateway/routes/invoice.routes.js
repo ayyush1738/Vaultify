@@ -5,7 +5,7 @@ import { mintInvoice, parseInvoice } from '../controllers/invoice.controller.js'
 const router = Router();
 
 // POST /api/v1/enterprise/
-router.post('/', upload.single('file'), mintInvoice);
+router.post('/mint', upload.single('file'), mintInvoice);
 
 // POST /api/v1/enterprise/parse
 router.post('/parse', upload.single('file'), parseInvoice);
