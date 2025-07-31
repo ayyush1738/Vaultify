@@ -5,31 +5,36 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
-const initDb = async () => {
+export const query = (text, params) => pool.query(text, params);
+
+export const initDb = async () => {
   try {
     const client = await pool.connect();
     console.log('✅ Connected to the PostgreSQL database.');
 
     const createTables = `
-      -- Users table can be used for associating SMEs with a username or other profile data
       CREATE TABLE IF NOT EXISTS users (
-          id SERIAL PRIMARY KEY,
-          username TEXT UNIQUE,
-          wallet_address TEXT UNIQUE NOT NULL,
-          role TEXT CHECK(role IN ('investor', 'enterprise')) NOT NULL DEFAULT 'investor'
+        id SERIAL PRIMARY KEY,
+        username TEXT UNIQUE,
+        wallet_address TEXT UNIQUE NOT NULL,
+        role TEXT CHECK(role IN ('investor', 'enterprise')) NOT NULL DEFAULT 'investor'
       );
 
-      -- Invoices table as per your specification
       CREATE TABLE IF NOT EXISTS enterpriseInv (
-          id SERIAL PRIMARY KEY ,
-          sme_address TEXT NOT NULL,
-          token_id BIGINT,
-          ipfs_cid TEXT UNIQUE NOT NULL,
-          invoice_amount NUMERIC NOT NULL,
-          tx_hash TEXT UNIQUE,
-          investor_pubkey TEXT,
-          status TEXT DEFAULT 'Pending Funding' NOT NULL,
-          created_at TIMESTAMPTZ DEFAULT NOW()
+        id SERIAL PRIMARY KEY,
+        sme_address TEXT NOT NULL,
+        token_id BIGINT,
+        ipfs_cid TEXT UNIQUE NOT NULL,
+        invoice_amount NUMERIC NOT NULL,
+        funded_amount NUMERIC,
+        preferred_token_symbol TEXT,
+        tx_hash TEXT UNIQUE,
+        investor_pubkey TEXT,
+        status TEXT CHECK(status IN ('pending', 'funded', 'repaid')) NOT NULL DEFAULT 'pending',
+        created_at TIMESTAMPTZ DEFAULT NOW()
+        -- Optional fields if needed:
+        -- , chain_id INTEGER
+        -- , due_date TIMESTAMPTZ
       );
     `;
 
@@ -38,15 +43,7 @@ const initDb = async () => {
     console.log('✅ Tables ensured for Vaultify EVM architecture.');
   } catch (err) {
     console.error('❌ Database initialization error:', err.stack);
-    // In a real app, you might want to exit if the DB can't be initialized
-    // process.exit(1); 
   }
 };
 
-// Run the initialization
 initDb();
-
-// Export a dedicated query function that uses the pool
-export function query(text, params) {
-  return pool.query(text, params);
-}

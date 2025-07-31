@@ -28,8 +28,8 @@
 // }
 
 const getSupportedTokens = [
-    { symbol: 'USDC', address: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48' },
-    { symbol: 'DAI', address: '0x6b175474e89094c44da98b954eedeac495271d0f' },
+    { symbol: 'USDC', address: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238' },
+    { symbol: 'DAI', address: '0x3e622317f8C93f7328350cF0B56d9eD4C620C5d6' },
     { symbol: 'ETH', address: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee' },
 ];
 

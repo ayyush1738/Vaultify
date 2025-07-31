@@ -134,6 +134,19 @@ const vaultManagerAbi = [
 	{
 		"inputs": [
 			{
+				"internalType": "uint256",
+				"name": "tokenId",
+				"type": "uint256"
+			}
+		],
+		"name": "fundInvoice",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
 				"internalType": "address",
 				"name": "owner",
 				"type": "address"
@@ -234,6 +247,25 @@ const vaultManagerAbi = [
 			{
 				"indexed": true,
 				"internalType": "address",
+				"name": "investor",
+				"type": "address"
+			}
+		],
+		"name": "InvoiceFunded",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "uint256",
+				"name": "nftId",
+				"type": "uint256"
+			},
+			{
+				"indexed": true,
+				"internalType": "address",
 				"name": "sme",
 				"type": "address"
 			},
@@ -248,17 +280,29 @@ const vaultManagerAbi = [
 		"type": "event"
 	},
 	{
+		"anonymous": false,
 		"inputs": [
 			{
+				"indexed": true,
 				"internalType": "uint256",
 				"name": "nftId",
 				"type": "uint256"
+			},
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "sme",
+				"type": "address"
+			},
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "investor",
+				"type": "address"
 			}
 		],
-		"name": "markAsPaid",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
+		"name": "InvoiceRepaid",
+		"type": "event"
 	},
 	{
 		"anonymous": false,
@@ -334,6 +378,19 @@ const vaultManagerAbi = [
 	{
 		"inputs": [],
 		"name": "renounceOwnership",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "tokenId",
+				"type": "uint256"
+			}
+		],
+		"name": "repayInvoice",
 		"outputs": [],
 		"stateMutability": "nonpayable",
 		"type": "function"
@@ -529,6 +586,11 @@ const vaultManagerAbi = [
 						"type": "address"
 					},
 					{
+						"internalType": "address",
+						"name": "investor",
+						"type": "address"
+					},
+					{
 						"internalType": "uint256",
 						"name": "fundingAmount",
 						"type": "uint256"
@@ -551,6 +613,11 @@ const vaultManagerAbi = [
 					{
 						"internalType": "bool",
 						"name": "isPaid",
+						"type": "bool"
+					},
+					{
+						"internalType": "bool",
+						"name": "isFunded",
 						"type": "bool"
 					}
 				],
@@ -583,6 +650,11 @@ const vaultManagerAbi = [
 				"type": "address"
 			},
 			{
+				"internalType": "address",
+				"name": "investor",
+				"type": "address"
+			},
+			{
 				"internalType": "uint256",
 				"name": "fundingAmount",
 				"type": "uint256"
@@ -605,6 +677,11 @@ const vaultManagerAbi = [
 			{
 				"internalType": "bool",
 				"name": "isPaid",
+				"type": "bool"
+			},
+			{
+				"internalType": "bool",
+				"name": "isFunded",
 				"type": "bool"
 			}
 		],

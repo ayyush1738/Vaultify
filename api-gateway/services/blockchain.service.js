@@ -18,7 +18,6 @@ export function initBlockchain() {
     provider = new ethers.JsonRpcProvider(rpcUrl);
     signer = new ethers.Wallet(privateKey, provider);
 
-    // ✅ Correct Interface instantiation in Ethers v6
     const iface = new Interface(vaultManagerAbi);
     vaultManagerContract = new ethers.Contract(contractAddress, vaultManagerAbi, signer);
 
@@ -26,11 +25,8 @@ export function initBlockchain() {
 }
 
 export async function mintInvoiceOnChain(data) {
-    const allTokens = getSupportedTokens;
-
-    const tokenInfo = allTokens.find(
-        (t) => t.symbol === data.preferredTokenSymbol
-    );
+    const allTokens = getSupportedTokens(); // 🛠️ FIX: You forgot to call the function
+    const tokenInfo = allTokens.find((t) => t.symbol === data.preferredTokenSymbol);
 
     if (!tokenInfo || !tokenInfo.address) {
         throw new Error(`❌ Unsupported token: ${data.preferredTokenSymbol}`);
@@ -39,10 +35,8 @@ export async function mintInvoiceOnChain(data) {
     const fundingAmount = parseFloat(data.invoiceAmount) * 0.98;
     const repaymentAmount = parseFloat(data.invoiceAmount);
 
-    
-
     const fundingAmountBI = ethers.parseUnits(
-        fundingAmount.toFixed(tokenInfo.decimals || 18), // fallback to 18
+        fundingAmount.toFixed(tokenInfo.decimals || 18),
         tokenInfo.decimals || 18
     );
     const repaymentAmountBI = ethers.parseUnits(
@@ -60,11 +54,7 @@ export async function mintInvoiceOnChain(data) {
 
     const receipt = await tx.wait();
 
-    console.log(tx.hash)
-
-    // ✅ FIXED: Correct event signature
     const topic = ethers.id("InvoiceMinted(uint256,address,string)");
-
     const log = receipt.logs.find((l) => l.topics[0] === topic);
     if (!log) {
         throw new Error("❌ InvoiceMinted event not found in transaction logs.");
@@ -75,6 +65,10 @@ export async function mintInvoiceOnChain(data) {
 
     return {
         nftId,
-        txHash: tx.hash
+        txHash: tx.hash,
+        fundingAmount,
+        repaymentAmount,
+        preferredToken: tokenInfo.symbol,
+        tokenAddress: tokenInfo.address
     };
 }
