@@ -23,8 +23,6 @@ export async function getSupportedTokens() {
 
     const allTokens = Object.values(response.data.tokens);
     cache.lastFetch = now;
-
-    console.log(allTokens)
     
     return allTokens;
 }

@@ -27,9 +27,9 @@ interface Invoice {
 
 // Supported tokens
 const supportedTokens = [
-    { symbol: 'USDC', address: '0xA0b8...eB48' },
-    { symbol: 'DAI', address: '0x6B17...1d0F' },
-    { symbol: 'ETH', address: '0xEeee...EEeE' },
+    { symbol: 'USDC', address: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48' },
+    { symbol: 'DAI', address: '0x6b175474e89094c44da98b954eedeac495271d0f' },
+    { symbol: 'ETH', address: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee' },
 ];
 
 // Demo list (remove once wired to backend list endpoint)

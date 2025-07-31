@@ -9,10 +9,6 @@ export async function uploadToIPFS(file, metadata) {
     const pinataSecretApiKey = process.env.PINATA_SECRET_API_KEY;
     const pinataJWT = process.env.PINATA_JWT;
 
-    console.log(pinataApiKey);
-    console.log(pinataJWT);
-    console.log(pinataSecretApiKey)
-
     if (!pinataApiKey || !pinataSecretApiKey || !pinataJWT) {
         throw new Error("Pinata credentials (API Key, Secret, JWT) are not fully configured in .env.");
     }
