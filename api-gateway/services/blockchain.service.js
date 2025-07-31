@@ -1,6 +1,6 @@
 import { ethers, Interface } from 'ethers';
 import vaultManagerAbi from '../config/vaultManager.js';
-import { getSupportedTokens } from './token.service.js';
+import getSupportedTokens from './token.service.js';
 
 let provider;
 let signer;
@@ -26,7 +26,7 @@ export function initBlockchain() {
 }
 
 export async function mintInvoiceOnChain(data) {
-    const allTokens = await getSupportedTokens();
+    const allTokens = getSupportedTokens;
 
     const tokenInfo = allTokens.find(
         (t) => t.symbol === data.preferredTokenSymbol
@@ -39,13 +39,15 @@ export async function mintInvoiceOnChain(data) {
     const fundingAmount = parseFloat(data.invoiceAmount) * 0.98;
     const repaymentAmount = parseFloat(data.invoiceAmount);
 
+    
+
     const fundingAmountBI = ethers.parseUnits(
-        fundingAmount.toFixed(tokenInfo.decimals),
-        tokenInfo.decimals
+        fundingAmount.toFixed(tokenInfo.decimals || 18), // fallback to 18
+        tokenInfo.decimals || 18
     );
     const repaymentAmountBI = ethers.parseUnits(
-        repaymentAmount.toFixed(tokenInfo.decimals),
-        tokenInfo.decimals
+        repaymentAmount.toFixed(tokenInfo.decimals || 18),
+        tokenInfo.decimals || 18
     );
 
     const tx = await vaultManagerContract.mintInvoice(
@@ -58,8 +60,10 @@ export async function mintInvoiceOnChain(data) {
 
     const receipt = await tx.wait();
 
-    // ✅ Use ethers.id to generate event topic hash in Ethers v6
-    const topic = ethers.id("InvoiceMinted(address,uint256,uint256,uint256,string,uint256)");
+    console.log(tx.hash)
+
+    // ✅ FIXED: Correct event signature
+    const topic = ethers.id("InvoiceMinted(uint256,address,string)");
 
     const log = receipt.logs.find((l) => l.topics[0] === topic);
     if (!log) {

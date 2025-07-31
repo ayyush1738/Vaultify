@@ -20,22 +20,14 @@ const initDb = async () => {
       );
 
       -- Invoices table as per your specification
-      CREATE TABLE IF NOT EXISTS invoices (
-          id SERIAL PRIMARY KEY,
+      CREATE TABLE IF NOT EXISTS enterpriseInv (
+          id SERIAL PRIMARY KEY ,
           sme_address TEXT NOT NULL,
-          chain_id INTEGER NOT NULL,
-          
-          -- On-Chain Data
-          vault_contract_address TEXT,
           token_id BIGINT,
-          tx_hash TEXT UNIQUE,
-          
-          -- Off-Chain Metadata
           ipfs_cid TEXT UNIQUE NOT NULL,
           invoice_amount NUMERIC NOT NULL,
-          funding_goal NUMERIC NOT NULL,
-          
-          -- Status
+          tx_hash TEXT UNIQUE,
+          investor_pubkey TEXT,
           status TEXT DEFAULT 'Pending Funding' NOT NULL,
           created_at TIMESTAMPTZ DEFAULT NOW()
       );

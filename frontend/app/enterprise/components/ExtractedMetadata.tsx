@@ -69,11 +69,6 @@ export default function ExtractedMetadata({
                 {extractedMetadata ? (
                     <div className="space-y-4 text-sm">
                         <div className="flex justify-between items-center">
-                            <Label className="text-slate-400">Invoice Number</Label>
-                            <p className="font-mono text-white">{extractedMetadata.invoiceNumber}</p>
-                        </div>
-
-                        <div className="flex justify-between items-center">
                             <Label className="text-slate-400">Amount</Label>
                             <p className="font-medium text-lg text-green-400">
                                 ${String(extractedMetadata.amount)}

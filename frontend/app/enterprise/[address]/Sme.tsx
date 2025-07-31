@@ -16,7 +16,6 @@ import InvoiceTableCard from '../components/InvoiceTableCard';
 
 // Types
 interface Invoice {
-    id: string;
     fileName: string;
     amount: string;
     customer: string;
@@ -32,12 +31,6 @@ const supportedTokens = [
     { symbol: 'ETH', address: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee' },
 ];
 
-// Demo list (remove once wired to backend list endpoint)
-const mockInvoices: Invoice[] = [
-    { id: 'INV-001', fileName: 'q3-services.pdf', amount: '$5,000.00', customer: 'TechCorp', dueDate: '2025-08-15', status: 'Funded', uploadDate: '2025-06-20' },
-    { id: 'INV-002', fileName: 'design-assets.pdf', amount: '$2,500.00', customer: 'Creative LLC', dueDate: '2025-08-22', status: 'Pending Funding', uploadDate: '2025-07-01' },
-    { id: 'INV-003', fileName: 'consulting-fee.pdf', amount: '$10,000.00', customer: 'Global Solutions', dueDate: '2025-07-30', status: 'Repaid', uploadDate: '2025-05-15' },
-];
 
 export default function SMEDashboard() {
     const { address, isConnected } = useAccount();
@@ -57,33 +50,6 @@ export default function SMEDashboard() {
 
 
     const API_BASE = process.env.NEXT_PUBLIC_API_URL;
-
-    useEffect(() => {
-        const fetchInvoices = async () => {
-            if (!isConnected || !address) {
-                setIsLoadingInvoices(false);
-                setInvoices([]);
-                return;
-            }
-            setIsLoadingInvoices(true);
-
-            try {
-                // TODO: replace with your backend list endpoint
-                // const res = await axios.get(`${API_BASE}/api/v1/invoices?sme_address=${address}`);
-                // setInvoices(res.data);
-                setTimeout(() => {
-                    setInvoices(mockInvoices);
-                    setIsLoadingInvoices(false);
-                }, 1000);
-            } catch (err) {
-                console.error(err);
-                setError('Failed to fetch your invoices.');
-                setIsLoadingInvoices(false);
-            }
-        };
-
-        fetchInvoices();
-    }, [isConnected, address, API_BASE]);
 
     const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
         try {
@@ -159,7 +125,6 @@ export default function SMEDashboard() {
             });
 
             const newInvoice: Invoice = {
-                id: extractedMetadata.invoiceNumber || `INV-${Date.now()}`,
                 fileName: selectedFile.name,
                 amount: `$${Number(normalizedAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
                 customer: extractedMetadata.customerName || 'N/A',
@@ -178,12 +143,6 @@ export default function SMEDashboard() {
         }
     };
 
-    const handleRepay = (invoiceId: string) => {
-        // Demo only
-        setInvoices(prev =>
-            prev.map(inv => (inv.id === invoiceId ? { ...inv, status: 'Repaid' } : inv)),
-        );
-    };
 
     const getStatusBadge = (status: Invoice['status']) => {
         switch (status) {
@@ -289,12 +248,6 @@ export default function SMEDashboard() {
                         setExtractedMetadata={setExtractedMetadata}
                     />
                 </div>
-
-                <InvoiceTableCard
-                    invoices={invoices}
-                    isLoading={isLoadingInvoices}
-                    onRepay={handleRepay}
-                />
 
             </main>
         </div>
