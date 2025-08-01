@@ -42,11 +42,11 @@ export const mintInvoice = async (req, res) => {
     // 3. Save to DB
     await query(
       `INSERT INTO enterpriseInv 
-      (sme_address, token_id, ipfs_cid, invoice_amount, funded_amount, preferred_token, tx_hash, investor_pubkey, status, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, NULL, 'Pending Funding', NOW())`,
+  (sme_address, customer_name, ipfs_cid, invoice_amount, funded_amount, preferred_token_symbol, tx_hash, investor_pubkey, status, created_at)
+  VALUES ($1, $2, $3, $4, $5, $6, $7, NULL, 'pending', NOW())`,
       [
         smeAddress,
-        nftId,
+        customerName,
         metadataIpfsHash.replace('ipfs://', ''),
         parseFloat(invoiceAmount),
         parseFloat(fundingAmount),

@@ -23,7 +23,7 @@ export const initDb = async () => {
       CREATE TABLE IF NOT EXISTS enterpriseInv (
         id SERIAL PRIMARY KEY,
         sme_address TEXT NOT NULL,
-        token_id BIGINT,
+        customer_name TEXT NOT NULL,
         ipfs_cid TEXT UNIQUE NOT NULL,
         invoice_amount NUMERIC NOT NULL,
         funded_amount NUMERIC,

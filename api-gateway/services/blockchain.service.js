@@ -25,7 +25,7 @@ export function initBlockchain() {
 }
 
 export async function mintInvoiceOnChain(data) {
-    const allTokens = getSupportedTokens(); // 🛠️ FIX: You forgot to call the function
+    const allTokens = getSupportedTokens; // 🛠️ FIX: You forgot to call the function
     const tokenInfo = allTokens.find((t) => t.symbol === data.preferredTokenSymbol);
 
     if (!tokenInfo || !tokenInfo.address) {
