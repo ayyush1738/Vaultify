@@ -13,13 +13,12 @@ router.get('/sme/:address', async (req, res) => {
     const { rows } = await query(`
       SELECT 
         id,
+        customer_name,
         ipfs_cid,
         tx_hash,
         invoice_amount,
-        status,
-        -- FIX: Use the correct column name from the database schema
         preferred_token_symbol,
-        created_at
+        status
       FROM enterpriseInv
       WHERE sme_address = $1
       ORDER BY created_at DESC
@@ -27,10 +26,9 @@ router.get('/sme/:address', async (req, res) => {
 
     const formatted = rows.map((inv) => ({
       id: `INV-${String(inv.id).padStart(3, '0')}`,
-      customerName: 'N/A', 
+      customerName: inv.customer_name, 
       invoiceAmount: inv.invoice_amount,
-      // FIX: Map the database column to the front-end type property name
-      preferredTokenSymbol: inv.preferred_token,
+      preferredTokenSymbol: inv.preferred_token_symbol,
       status:
         inv.status === 'funded'
           ? 'Funded'
@@ -42,6 +40,8 @@ router.get('/sme/:address', async (req, res) => {
       createdAt: inv.created_at,
       fundedAmount: null,
     }));
+
+    console.log(formatted)
 
     res.json({ invoices: formatted });
   } catch (err) {

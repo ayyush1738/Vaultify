@@ -42,6 +42,39 @@ export default function SMEDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [isLoadingInvoices, setIsLoadingInvoices] = useState(true);
+  const [convertedAmount, setConvertedAmount] = useState<string | null>(null);
+
+  const fetchConvertedAmount = async (
+  fromSymbol: string,
+  toSymbol: string,
+  amount: string
+) => {
+  try {
+    const normalized = String(amount || '').replace(/[^0-9.]/g, '');
+    if (!normalized || fromSymbol === toSymbol) {
+      setConvertedAmount(normalized);
+      return;
+    }
+
+    const res = await axios.get(
+      `https://fake-api.com/convert?from=${fromSymbol}&to=${toSymbol}&amount=${normalized}`
+    );
+    const { convertedAmount } = res.data;
+    setConvertedAmount(convertedAmount.toString());
+
+    // Update in metadata too
+    setExtractedMetadata((prev: any) => ({
+      ...prev,
+      convertedAmount: convertedAmount.toString(),
+      preferredToken: toSymbol,
+    }));
+  } catch (err) {
+    console.error('Conversion failed:', err);
+    setConvertedAmount(null);
+  }
+};
+
+
 
   // FIX: Include the customerName check in `isReadyToMint` to align with the minting logic
   const isReadyToMint =
@@ -67,13 +100,13 @@ useEffect(() => {
 
     try {
       const token = localStorage.getItem('jwt') || '';
-      // FIX: Use URL parameter in the API endpoint
       const res = await axios.get(`${API_BASE}/api/v1/invoices/sme/${address}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
       // FIX: Access the 'invoices' property from the response data
+      console.log(res)
       setInvoices(res.data.invoices);
     } catch (err: any) {
       console.error('Failed to fetch invoices:', err?.response?.data || err?.message || err);
@@ -240,9 +273,15 @@ useEffect(() => {
                   id="token-select"
                   value={preferredToken.symbol}
                   onChange={(e) => {
-                    const token = supportedTokens.find(t => t.symbol === e.target.value);
-                    if (token) setPreferredToken(token);
-                  }}
+  const token = supportedTokens.find(t => t.symbol === e.target.value);
+  if (token) {
+    setPreferredToken(token);
+    if (extractedMetadata?.amount) {
+      fetchConvertedAmount('USDC', token.symbol, extractedMetadata.amount);
+    }
+  }
+}}
+
                   className="w-full bg-slate-800 text-white p-2 rounded-md border border-white/20 focus:ring-2 focus:ring-purple-500"
                 >
                   {supportedTokens.map((token) => (
@@ -269,11 +308,12 @@ useEffect(() => {
             </CardContent>
           </Card>
           <ExtractedMetadata
-            extractedMetadata={extractedMetadata}
-            selectedFile={selectedFile}
-            isReadyToMint={isReadyToMint}
-            setExtractedMetadata={setExtractedMetadata}
-          />
+  extractedMetadata={extractedMetadata}
+  selectedFile={selectedFile}
+  isReadyToMint={isReadyToMint}
+  setExtractedMetadata={setExtractedMetadata}
+/>
+
         </div>
 
         <div className="space-y-4">

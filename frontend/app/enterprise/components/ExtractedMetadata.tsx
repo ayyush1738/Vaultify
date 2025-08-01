@@ -33,6 +33,7 @@ export default function ExtractedMetadata({
     const [mintAllowed, setMintAllowed] = useState<boolean>(false);
     const [dateError, setDateError] = useState<string>('');
 
+
     const handleSetCustomer = () => {
         if (!customerInput.trim() || !dueDate.trim() || !issueDate.trim()) return;
 
@@ -71,8 +72,11 @@ export default function ExtractedMetadata({
                         <div className="flex justify-between items-center">
                             <Label className="text-slate-400">Amount</Label>
                             <p className="font-medium text-lg text-green-400">
-                                ${String(extractedMetadata.amount)}
+                                {extractedMetadata.convertedAmount
+                                    ? `${extractedMetadata.convertedAmount} ${extractedMetadata.preferredToken || 'USDC'}`
+                                    : `${extractedMetadata.amount} USDC`}
                             </p>
+
                         </div>
                         <div className="flex justify-between items-center">
                             <Label className="text-slate-400 min-w-24">Issue Date</Label>
@@ -112,15 +116,15 @@ export default function ExtractedMetadata({
                             ) : (
                                 <p className="text-white">{customerName}</p>
                             )}
-                        </div>                        
-                            <Button
-                                onClick={handleSetCustomer}
-                                variant="secondary"
-                                className="w-full"
-                                disabled={!customerInput.trim() || !dueDate.trim() || !issueDate.trim()}
-                            >
-                                SET PROPERTIES
-                            </Button>
+                        </div>
+                        <Button
+                            onClick={handleSetCustomer}
+                            variant="secondary"
+                            className="w-full"
+                            disabled={!customerInput.trim() || !dueDate.trim() || !issueDate.trim()}
+                        >
+                            SET PROPERTIES
+                        </Button>
                         {isReadyToMint && mintAllowed ? (
                             <div className="pt-2 mt-2 border-t border-white/10 flex justify-between items-center text-green-400">
                                 <CheckCircle className="h-5 w-5" />
