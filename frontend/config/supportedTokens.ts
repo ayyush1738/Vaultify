@@ -1,23 +1,52 @@
 export const supportedTokens = [
   {
-    symbol: "USDC",
-    address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-    decimals: 6,
-    chainId: 1,
-    logoURI: "https://cryptologos.cc/logos/usd-coin-usdc-logo.png",
-  },
-  {
+    address: "0x6b175474e89094c44da98b954eedeac495271d0f",
     symbol: "DAI",
-    address: "0x6B175474E89094C44Da98b954EedeAC495271d0F",
     decimals: 18,
-    chainId: 1,
-    logoURI: "https://cryptologos.cc/logos/multi-collateral-dai-dai-logo.png",
+    name: "Dai Stablecoin",
+    logoURI: "https://tokens.1inch.io/0x6b175474e89094c44da98b954eedeac495271d0f.png",
+    eip2612: true,
+    tags: [
+      "crosschain",
+      "defi",
+      "GROUP:DAI",
+      "PEG:USD",
+      "RISK:unverified",
+      "stablecoin",
+      "synthetic",
+      "tokens"
+    ],
   },
   {
+    address: "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
     symbol: "ETH",
-    address: "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", // pseudo-address for native ETH
     decimals: 18,
-    chainId: 1,
-    logoURI: "https://cryptologos.cc/logos/ethereum-eth-logo.png",
+    name: "Ether",
+    logoURI: "https://tokens.1inch.io/0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee.png",
+    eip2612: false,
+    tags: [
+      "crosschain",
+      "GROUP:ETH",
+      "native",
+      "PEG:ETH",
+      "RISK:availability"
+    ],
+  },
+  {
+    address: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+    symbol: "USDC",
+    decimals: 6,
+    name: "USD Coin",
+    logoURI: "https://tokens.1inch.io/0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48.png",
+    eip2612: true,
+    tags: [
+      "crosschain",
+      "defi",
+      "GROUP:USDC",
+      "PEG:USD",
+      "RISK:unverified",
+      "stablecoin",
+      "tokens"
+    ],
   },
 ];

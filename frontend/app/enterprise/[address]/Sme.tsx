@@ -13,6 +13,8 @@ import Link from 'next/link';
 import axios from 'axios';
 import ExtractedMetadata from '../components/ExtractedMetadata';
 import InvoiceTableCard from '../components/InvoiceTableCard';
+import { ethers } from 'ethers';
+import { supportedTokens } from '@/config/supportedTokens';
 
 // Types
 type Invoice = {
@@ -26,13 +28,6 @@ type Invoice = {
   createdAt: string;
 };
 
-// Supported tokens
-const supportedTokens = [
-    { symbol: 'USDC', address: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238' },
-    { symbol: 'DAI', address: '0x3e622317f8C93f7328350cF0B56d9eD4C620C5d6' },
-    { symbol: 'ETH', address: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee' },
-];
-
 export default function SMEDashboard() {
   const { address, isConnected } = useAccount();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -44,35 +39,57 @@ export default function SMEDashboard() {
   const [isLoadingInvoices, setIsLoadingInvoices] = useState(true);
   const [convertedAmount, setConvertedAmount] = useState<string | null>(null);
 
+
   const fetchConvertedAmount = async (
-  fromSymbol: string,
-  toSymbol: string,
-  amount: string
-) => {
-  try {
-    const normalized = String(amount || '').replace(/[^0-9.]/g, '');
-    if (!normalized || fromSymbol === toSymbol) {
-      setConvertedAmount(normalized);
-      return;
+    fromSymbol: string,
+    toSymbol: string,
+    amount: string
+  ) => {
+    try {
+      const fromToken = supportedTokens.find(t => t.symbol === fromSymbol);
+      const toToken = supportedTokens.find(t => t.symbol === toSymbol);
+
+      if (!fromToken || !toToken) return;
+
+      const normalized = String(amount || '').replace(/[^0-9.]/g, '');
+      if (!normalized || fromSymbol === toSymbol) {
+        setConvertedAmount(normalized);
+        return;
+      }
+
+      const decimals = fromSymbol === 'USDC' ? 6 : 18;
+      const amountInWei = ethers.parseUnits(normalized, decimals);
+
+      const res = await axios.get(`/api/quote`, {
+        params: {
+          fromTokenAddress: fromToken.address,
+          toTokenAddress: toToken.address,
+          amount: amountInWei.toString(),
+        },
+      });
+
+      const { toTokenAmount, toToken: resToToken } = res.data;
+
+      if (!resToToken || typeof resToToken.decimals !== 'number') {
+        console.error('Invalid 1inch quote response:', res.data);
+        setConvertedAmount(null);
+        return;
+      }
+
+      const convertedFormatted = ethers.formatUnits(toTokenAmount, resToToken.decimals);
+      setConvertedAmount(convertedFormatted);
+
+      setExtractedMetadata((prev: any) => ({
+        ...prev,
+        convertedAmount: convertedFormatted,
+        preferredToken: toSymbol,
+      }));
+    } catch (err) {
+      console.error('1inch price fetch failed:', err);
+      setConvertedAmount(null);
     }
+  };
 
-    const res = await axios.get(
-      `https://fake-api.com/convert?from=${fromSymbol}&to=${toSymbol}&amount=${normalized}`
-    );
-    const { convertedAmount } = res.data;
-    setConvertedAmount(convertedAmount.toString());
-
-    // Update in metadata too
-    setExtractedMetadata((prev: any) => ({
-      ...prev,
-      convertedAmount: convertedAmount.toString(),
-      preferredToken: toSymbol,
-    }));
-  } catch (err) {
-    console.error('Conversion failed:', err);
-    setConvertedAmount(null);
-  }
-};
 
 
 
@@ -88,38 +105,38 @@ export default function SMEDashboard() {
 
   // ... (imports)
 
-// This assumes your API_BASE environment variable is correctly set
+  // This assumes your API_BASE environment variable is correctly set
 
-useEffect(() => {
-  const fetchInvoices = async () => {
-    // Check for both address and API_BASE before making the call
-    if (!address || !API_BASE) {
-      setIsLoadingInvoices(false); // Make sure to stop loading if conditions aren't met
-      return;
-    }
+  useEffect(() => {
+    const fetchInvoices = async () => {
+      // Check for both address and API_BASE before making the call
+      if (!address || !API_BASE) {
+        setIsLoadingInvoices(false); // Make sure to stop loading if conditions aren't met
+        return;
+      }
 
-    try {
-      const token = localStorage.getItem('jwt') || '';
-      const res = await axios.get(`${API_BASE}/api/v1/invoices/sme/${address}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      // FIX: Access the 'invoices' property from the response data
-      console.log(res)
-      setInvoices(res.data.invoices);
-    } catch (err: any) {
-      console.error('Failed to fetch invoices:', err?.response?.data || err?.message || err);
-      // You might want to set an error state here as well
-      // setError('Failed to load invoices.'); 
-    } finally {
-      setIsLoadingInvoices(false);
-    }
-  };
+      try {
+        const token = localStorage.getItem('jwt') || '';
+        const res = await axios.get(`${API_BASE}/api/v1/invoices/sme/${address}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        // FIX: Access the 'invoices' property from the response data
+        console.log(res)
+        setInvoices(res.data.invoices);
+      } catch (err: any) {
+        console.error('Failed to fetch invoices:', err?.response?.data || err?.message || err);
+        // You might want to set an error state here as well
+        // setError('Failed to load invoices.'); 
+      } finally {
+        setIsLoadingInvoices(false);
+      }
+    };
 
-  fetchInvoices();
-  // Add dependencies to the useEffect hook
-}, [address, API_BASE]);
+    fetchInvoices();
+    // Add dependencies to the useEffect hook
+  }, [address, API_BASE]);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     try {
@@ -273,14 +290,14 @@ useEffect(() => {
                   id="token-select"
                   value={preferredToken.symbol}
                   onChange={(e) => {
-  const token = supportedTokens.find(t => t.symbol === e.target.value);
-  if (token) {
-    setPreferredToken(token);
-    if (extractedMetadata?.amount) {
-      fetchConvertedAmount('USDC', token.symbol, extractedMetadata.amount);
-    }
-  }
-}}
+                    const token = supportedTokens.find(t => t.symbol === e.target.value);
+                    if (token) {
+                      setPreferredToken(token);
+                      if (extractedMetadata?.amount) {
+                        fetchConvertedAmount('USDC', token.symbol, extractedMetadata.amount);
+                      }
+                    }
+                  }}
 
                   className="w-full bg-slate-800 text-white p-2 rounded-md border border-white/20 focus:ring-2 focus:ring-purple-500"
                 >
@@ -308,11 +325,11 @@ useEffect(() => {
             </CardContent>
           </Card>
           <ExtractedMetadata
-  extractedMetadata={extractedMetadata}
-  selectedFile={selectedFile}
-  isReadyToMint={isReadyToMint}
-  setExtractedMetadata={setExtractedMetadata}
-/>
+            extractedMetadata={extractedMetadata}
+            selectedFile={selectedFile}
+            isReadyToMint={isReadyToMint}
+            setExtractedMetadata={setExtractedMetadata}
+          />
 
         </div>
 
