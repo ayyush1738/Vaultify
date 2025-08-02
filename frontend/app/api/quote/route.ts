@@ -5,45 +5,47 @@ import axios from 'axios';
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
 
+  // Our frontend still provides your old param names:
   const fromTokenAddress = searchParams.get('fromTokenAddress');
   const toTokenAddress = searchParams.get('toTokenAddress');
   const amount = searchParams.get('amount');
-  const chainId = searchParams.get('chainId') || '1'; // default to Ethereum mainnet
+  const chainId = searchParams.get('chainId') || '1';
 
   if (!fromTokenAddress || !toTokenAddress || !amount) {
     return new Response(JSON.stringify({ error: 'Missing query parameters' }), {
       status: 400,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-      },
+      headers: { 'Content-Type': 'application/json' },
     });
   }
 
-  try {
-    const oneInchUrl = `https://api.1inch.io/v5.0/${chainId}/quote?fromTokenAddress=${fromTokenAddress}&toTokenAddress=${toTokenAddress}&amount=${amount}`;
+  // 1inch v6.1 API requires src, dst, and new base URL; params go in config.params!
+  const oneInchUrl = `https://api.1inch.dev/swap/v6.1/1/quote`;
 
-    const response = await axios.get(oneInchUrl, {
+  try {
+    const apiKey = process.env.ONEINCH_API_KEY; // Ensure you set this in your .env
+    const config = {
       headers: {
-        Authorization: `Bearer ${process.env.ONEINCH_API_KEY}`, // Make sure this is set in .env
+        Authorization: `Bearer ${apiKey}`,
       },
-    });
+      params: {
+        src: fromTokenAddress,
+        dst: toTokenAddress,
+        amount,
+      },
+      paramsSerializer: { indexes: null },
+    };
+
+    const response = await axios.get(oneInchUrl, config);
 
     return new Response(JSON.stringify(response.data), {
       status: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-      },
+      headers: { 'Content-Type': 'application/json' },
     });
   } catch (err: any) {
     console.error('1inch proxy error:', err.message || err);
     return new Response(JSON.stringify({ error: 'Failed to fetch quote' }), {
       status: 500,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-      },
+      headers: { 'Content-Type': 'application/json' },
     });
   }
 }

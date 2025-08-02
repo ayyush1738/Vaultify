@@ -7,7 +7,7 @@ import { ethers, BrowserProvider } from 'ethers';
 import vaultManagerABI from '@/lib/vaulltManager';
 import { toast } from 'sonner';
 
-const explorer = 'https://sepolia.etherscan.io/';
+const explorer = 'https://sepolia.etherscan.io/tx';
 const VAULT_MANAGER_ADDRESS = '0xYourVaultManagerAddress'; // <- replace with actual contract address
 
 type Invoice = {
@@ -83,7 +83,7 @@ export default function InvoiceTableCard({ invoices, getStatusBadge }: Props) {
             <tr key={inv.id}>
               <td className="p-3">{inv.id}</td>
               <td className="p-3">{inv.customerName}</td>
-              <td className="p-3">${Number(inv.invoiceAmount).toLocaleString()}</td>
+              <td className="p-3">{Number(inv.invoiceAmount).toLocaleString()}</td>
               <td className="p-3">{inv.preferredTokenSymbol}</td>
               <td className="p-3">
                 <a

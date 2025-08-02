@@ -46,10 +46,13 @@ export default function SMEDashboard() {
     amount: string
   ) => {
     try {
-      const fromToken = supportedTokens.find(t => t.symbol === fromSymbol);
-      const toToken = supportedTokens.find(t => t.symbol === toSymbol);
+      const fromToken = supportedTokens.find((t) => t.symbol === fromSymbol);
+      const toToken = supportedTokens.find((t) => t.symbol === toSymbol);
 
-      if (!fromToken || !toToken) return;
+      if (!fromToken || !toToken) {
+        console.warn('Unsupported token:', { fromSymbol, toSymbol });
+        return;
+      }
 
       const normalized = String(amount || '').replace(/[^0-9.]/g, '');
       if (!normalized || fromSymbol === toSymbol) {
@@ -57,26 +60,29 @@ export default function SMEDashboard() {
         return;
       }
 
-      const decimals = fromSymbol === 'USDC' ? 6 : 18;
+      const decimals = fromToken.decimals ?? 18;
       const amountInWei = ethers.parseUnits(normalized, decimals);
 
-      const res = await axios.get(`/api/quote`, {
+      const res = await axios.get('/api/quote', {
         params: {
           fromTokenAddress: fromToken.address,
           toTokenAddress: toToken.address,
           amount: amountInWei.toString(),
+          chainId: '1',
         },
       });
 
-      const { toTokenAmount, toToken: resToToken } = res.data;
+      const { dstAmount } = res.data;
 
-      if (!resToToken || typeof resToToken.decimals !== 'number') {
+      if (!dstAmount) {
         console.error('Invalid 1inch quote response:', res.data);
         setConvertedAmount(null);
         return;
       }
 
-      const convertedFormatted = ethers.formatUnits(toTokenAmount, resToToken.decimals);
+      const toDecimals = toToken.decimals ?? 18;
+      const convertedFormatted = ethers.formatUnits(dstAmount, toDecimals);
+
       setConvertedAmount(convertedFormatted);
 
       setExtractedMetadata((prev: any) => ({
@@ -161,6 +167,7 @@ export default function SMEDashboard() {
         },
         maxBodyLength: Infinity,
       });
+
       setExtractedMetadata(res.data);
     } catch (err: any) {
       console.error('OCR parse failed:', err?.response?.data || err?.message || err);
@@ -185,8 +192,9 @@ export default function SMEDashboard() {
       formData.append('file', selectedFile);
       formData.append('smeAddress', address);
       formData.append('chainId', String(chainId));
-      const normalizedAmount = String(extractedMetadata.amount || '').replace(/[^0-9.]/g, '');
-      formData.append('invoiceAmount', normalizedAmount || '0');
+      const amountToSend = convertedAmount ?? String(extractedMetadata.amount || '').replace(/[^0-9.]/g, '0');
+      formData.append('invoiceAmount', amountToSend);
+
       formData.append('dueDate', extractedMetadata.dueDate || '');
       // FIX: Ensure customerName is always a string and not null
       const customerName = (extractedMetadata.customerName || '').trim();
@@ -204,8 +212,7 @@ export default function SMEDashboard() {
         maxBodyLength: Infinity,
       });
 
-      // FIX: The new invoice object should match the `Invoice` type.
-      // Assuming the API returns the full invoice object, we can add it directly.
+
       const newInvoice: Invoice = res.data;
       setInvoices(prev => [newInvoice, ...prev]);
       setSelectedFile(null);
