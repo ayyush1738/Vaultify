@@ -19,6 +19,8 @@ In traditional business, SMEs wait weeks or months to get paid. Vaultify enables
 ---
 
 ## 🖼️ Demo Screenshots
+**Home page**    
+![SME Dashboard Screenshot](./screenshots/home.png)
 
 **SME Dashboard**  
 *Upload invoice, parse fields, and mint NFT*  
