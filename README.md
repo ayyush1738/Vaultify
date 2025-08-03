@@ -28,10 +28,13 @@ In traditional business, SMEs wait weeks or months to get paid. Vaultify enables
 *Browse invoices and fund using supported tokens*  
 ![Investor Dashboard Screenshot](./screenshots/investor-dashboard.png)
 
-**Invoice NFT View**  
-*View tokenized invoice on-chain with IPFS link*  
-![Invoice NFT Screenshot](./screenshots/invoice-nft.png)
+**SME Flow**  
+*High level diagram for SME flow*  
+![Invoice NFT Screenshot](./screenshots/sme.png)
 
+**Investor Flow**  
+*High level diagram for Investor flow*  
+![Invoice NFT Screenshot](./screenshots/investor.png)
 ---
 
 ## 🔁 How It Works
