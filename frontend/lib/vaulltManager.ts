@@ -18,13 +18,7 @@ const vaultManagerAbi = [
 		"type": "function"
 	},
 	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "initialOwner",
-				"type": "address"
-			}
-		],
+		"inputs": [],
 		"stateMutability": "nonpayable",
 		"type": "constructor"
 	},
@@ -135,7 +129,17 @@ const vaultManagerAbi = [
 		"inputs": [
 			{
 				"internalType": "uint256",
-				"name": "tokenId",
+				"name": "nftId",
+				"type": "uint256"
+			},
+			{
+				"internalType": "address",
+				"name": "investor",
+				"type": "address"
+			},
+			{
+				"internalType": "uint256",
+				"name": "amount",
 				"type": "uint256"
 			}
 		],
@@ -249,6 +253,12 @@ const vaultManagerAbi = [
 				"internalType": "address",
 				"name": "investor",
 				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "amount",
+				"type": "uint256"
 			}
 		],
 		"name": "InvoiceFunded",
@@ -292,12 +302,6 @@ const vaultManagerAbi = [
 				"indexed": true,
 				"internalType": "address",
 				"name": "sme",
-				"type": "address"
-			},
-			{
-				"indexed": true,
-				"internalType": "address",
-				"name": "investor",
 				"type": "address"
 			}
 		],
@@ -386,7 +390,7 @@ const vaultManagerAbi = [
 		"inputs": [
 			{
 				"internalType": "uint256",
-				"name": "tokenId",
+				"name": "nftId",
 				"type": "uint256"
 			}
 		],
@@ -601,6 +605,11 @@ const vaultManagerAbi = [
 						"type": "uint256"
 					},
 					{
+						"internalType": "enum VaultManager.Status",
+						"name": "status",
+						"type": "uint8"
+					},
+					{
 						"internalType": "uint256",
 						"name": "dueDate",
 						"type": "uint256"
@@ -609,16 +618,6 @@ const vaultManagerAbi = [
 						"internalType": "string",
 						"name": "metadataURI",
 						"type": "string"
-					},
-					{
-						"internalType": "bool",
-						"name": "isPaid",
-						"type": "bool"
-					},
-					{
-						"internalType": "bool",
-						"name": "isFunded",
-						"type": "bool"
 					}
 				],
 				"internalType": "struct VaultManager.Invoice",
@@ -665,6 +664,11 @@ const vaultManagerAbi = [
 				"type": "uint256"
 			},
 			{
+				"internalType": "enum VaultManager.Status",
+				"name": "status",
+				"type": "uint8"
+			},
+			{
 				"internalType": "uint256",
 				"name": "dueDate",
 				"type": "uint256"
@@ -673,16 +677,6 @@ const vaultManagerAbi = [
 				"internalType": "string",
 				"name": "metadataURI",
 				"type": "string"
-			},
-			{
-				"internalType": "bool",
-				"name": "isPaid",
-				"type": "bool"
-			},
-			{
-				"internalType": "bool",
-				"name": "isFunded",
-				"type": "bool"
 			}
 		],
 		"stateMutability": "view",

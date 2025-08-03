@@ -15,9 +15,10 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { supportedTokens } from '@/config/supportedTokens';
+import { ArrowLeft, AlertCircle, Inbox, Loader2 } from 'lucide-react';
 
 // Sepolia USDC contract address
 const USDC_CONTRACT_ADDRESS = '0x65aFADD39029741B3b8f0756952C74678c9cEC93';
@@ -40,6 +41,8 @@ type Invoice = {
   yieldPercent: string;
 };
 
+type Balances = Record<string, string>;
+
 export default function InvestorDashboard() {
   const { address, isConnected } = useAccount();
   const { data: walletClient } = useWalletClient();
@@ -51,12 +54,13 @@ export default function InvestorDashboard() {
   const [isApproving, setIsApproving] = useState(false);
   const [approvalDone, setApprovalDone] = useState(false);
 
+  const [balances, setBalances] = useState<Balances | null>(null);
+  const [isLoadingBalances, setIsLoadingBalances] = useState(false);
+  const [balanceError, setBalanceError] = useState<string | null>(null);
+
   const API_BASE = process.env.NEXT_PUBLIC_API_URL;
   const VAULT_MANAGER_ADDRESS = process.env.NEXT_PUBLIC_VAULT_MANAGER_ADDRESS || '';
 
-  // Dummy user balance - replace with actual call if needed
-  const balances = { USDC: 1250.0 };
-  const selectedToken = 'USDC';
 
   // Create ethers provider/signer from wagmi walletClient
   const provider = walletClient ? new BrowserProvider(walletClient) : undefined;
@@ -289,6 +293,71 @@ export default function InvestorDashboard() {
         <ConnectButton />
       </nav>
 
+      {isConnected && (
+        <div className="p-4 md:p-6 max-w-7xl mx-auto">
+          <Card className="bg-white/5 backdrop-blur-sm border-white/10">
+            <CardHeader>
+              <CardTitle>Your Token Balances</CardTitle>
+              <CardDescription className="text-slate-400 break-words">
+                Balances for wallet: {address}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoadingBalances ? (
+                <div className="flex items-center gap-2 text-slate-400">
+                  <Loader2 className="animate-spin h-4 w-4" />
+                  Loading balances...
+                </div>
+              ) : balanceError ? (
+                <div className="flex items-center gap-2 text-red-400">
+                  <AlertCircle className="h-4 w-4" />
+                  {balanceError}
+                </div>
+              ) : balances ? (
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(balances)
+                    .filter(([, bal]) => bal !== '0') // Filter out zero balances directly
+                    .map(([tokenAddress, bal]) => {
+
+                      // --- START OF THE FIX ---
+
+                      // 1. Find the token's metadata from your config to get its decimals.
+                      const token = supportedTokens.find(t => t.address.toLowerCase() === tokenAddress.toLowerCase());
+                      const symbol = token?.symbol || `Token (${tokenAddress.slice(0, 6)}...)`;
+
+                      // 2. Determine the correct number of decimals. Default to 18 (for ETH and others) if not found.
+                      const decimals = token?.decimals || 18;
+
+                      // 3. Use ethers.formatUnits() to convert the raw balance string (e.g., in Wei) to a decimal string (e.g., in Ether).
+                      const formattedBal = ethers.formatUnits(bal, decimals);
+
+                      // 4. Optionally, format the human-readable number for display to limit decimal places.
+                      const displayBal = parseFloat(formattedBal).toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 6, // Show more precision for small balances
+                      });
+
+                      // --- END OF THE FIX ---
+
+                      return (
+                        <Badge
+                          key={tokenAddress}
+                          variant="outline"
+                          className="bg-purple-600/10 text-purple-300 border-purple-600/30 px-3 py-1 text-sm"
+                        >
+                          {displayBal} {symbol}
+                        </Badge>
+                      );
+                    })}
+                </div>
+              ) : (
+                <div className="text-slate-400">You have no tokens with a balance greater than zero.</div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       <div className="max-w-7xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-2 gap-8">
 
         {/* Invoice Select */}
@@ -343,9 +412,6 @@ export default function InvestorDashboard() {
                 readOnly
                 className="bg-white/5 border-white/10 text-white placeholder:text-slate-400"
               />
-              <div className="text-xs text-slate-400">
-                Available: {balances.USDC.toLocaleString()} USDC
-              </div>
             </div>
             {selectedInvoice && (
               <div className="text-slate-300 text-sm">

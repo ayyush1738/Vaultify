@@ -28,6 +28,9 @@ type Invoice = {
   createdAt: string;
 };
 
+// Define the structure of the balances object received from the API
+type Balances = Record<string, string>;
+
 export default function SMEDashboard() {
   const { address, isConnected } = useAccount();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -38,36 +41,42 @@ export default function SMEDashboard() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [isLoadingInvoices, setIsLoadingInvoices] = useState(true);
   const [convertedAmount, setConvertedAmount] = useState<string | null>(null);
-  const [balances, setBalances] = useState<Record<string, string> | null>(null);
+
+  // State for token balances
+  const [balances, setBalances] = useState<Balances | null>(null);
   const [isLoadingBalances, setIsLoadingBalances] = useState(false);
   const [balanceError, setBalanceError] = useState<string | null>(null);
 
-  // No changes are needed here. This code is correct.
-useEffect(() => {
-  if (!address || !isConnected) {
-    setBalances(null);
-    return;
-  }
-  
-  const fetchBalances = async () => {
-    try {
-      // This correctly creates the URL:
-      // /api/balances/balance?chainId=1&walletAddress=0x...
-      // This matches your server file's location.
-      const res = await axios.get(`/api/balances/balance?chainId=1&walletAddress=${address}`);
-      setBalances(res.data);
-    } catch {
-      setBalanceError('Failed to load balances.');
-      setBalances(null);
-    }
-  };
-
-  fetchBalances();
-}, [address, isConnected]);
-
-
   const chainId = useChainId();
   const API_BASE = process.env.NEXT_PUBLIC_API_URL;
+
+  // useEffect for fetching balances
+  useEffect(() => {
+    if (!address || !isConnected) {
+      setBalances(null);
+      setBalanceError(null);
+      setIsLoadingBalances(false);
+      return;
+    }
+    const fetchBalances = async () => {
+      setIsLoadingBalances(true);
+      setBalanceError(null);
+      try {
+        const res = await axios.get<Balances>(
+          `/api/balances/balance?chainId=1&walletAddress=${address}`
+        );
+        setBalances(res.data);
+      } catch (err) {
+        console.error('Failed to fetch balances:', err);
+        setBalanceError('Failed to load balances.');
+        setBalances(null);
+      } finally {
+        setIsLoadingBalances(false);
+      }
+    };
+    fetchBalances();
+  }, [address, isConnected]);
+
 
   // Fetch converted amount from /api/quote
   const fetchConvertedAmount = async (
@@ -78,21 +87,15 @@ useEffect(() => {
     try {
       const fromToken = supportedTokens.find((t) => t.symbol === fromSymbol);
       const toToken = supportedTokens.find((t) => t.symbol === toSymbol);
-
-      if (!fromToken || !toToken) {
-        console.warn('Unsupported token:', { fromSymbol, toSymbol });
-        return;
-      }
+      if (!fromToken || !toToken) return;
 
       const normalized = String(amount || '').replace(/[^0-9.]/g, '');
       if (!normalized || fromSymbol === toSymbol) {
         setConvertedAmount(normalized);
         return;
       }
-
       const decimals = fromToken.decimals ?? 18;
       const amountInWei = ethers.parseUnits(normalized, decimals);
-
       const res = await axios.get('/api/quote', {
         params: {
           fromTokenAddress: fromToken.address,
@@ -101,20 +104,14 @@ useEffect(() => {
           chainId: '1',
         },
       });
-
       const { dstAmount } = res.data;
-
       if (!dstAmount) {
-        console.error('Invalid 1inch quote response:', res.data);
         setConvertedAmount(null);
         return;
       }
-
       const toDecimals = toToken.decimals ?? 18;
       const convertedFormatted = ethers.formatUnits(dstAmount, toDecimals);
-
       setConvertedAmount(convertedFormatted);
-
       setExtractedMetadata((prev: any) => ({
         ...prev,
         convertedAmount: convertedFormatted,
@@ -126,58 +123,45 @@ useEffect(() => {
     }
   };
 
-  // Flag to determine if ready to mint
   const isReadyToMint =
     !!extractedMetadata &&
     !!extractedMetadata.customerName &&
     String(extractedMetadata.amount || '').replace(/[^0-9.]/g, '').length > 0;
 
-  // Extracted fetchInvoices to be reusable
   const fetchInvoices = async () => {
     if (!address || !API_BASE) {
       setIsLoadingInvoices(false);
-      setInvoices([]); // Clear invoices if no address/API_BASE
+      setInvoices([]);
       return;
     }
     setIsLoadingInvoices(true);
     try {
       const token = localStorage.getItem('jwt') || '';
       const res = await axios.get(`${API_BASE}/api/v1/invoices/sme/${address}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
       setInvoices(res.data.invoices);
     } catch (err: any) {
-      console.error('Failed to fetch invoices:', err?.response?.data || err?.message || err);
       setError('Failed to load invoices.');
     } finally {
       setIsLoadingInvoices(false);
     }
   };
 
-  // Call fetchInvoices on mount and when address/API_BASE change
   useEffect(() => {
     fetchInvoices();
   }, [address, API_BASE]);
 
-  // Handle file selection for invoice document
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     try {
       setError(null);
       const file = e.target.files?.[0] || null;
       setSelectedFile(file);
       setExtractedMetadata(null);
-
-      if (!file) return;
-      if (!API_BASE) {
-        setError('NEXT_PUBLIC_API_URL is not set.');
-        return;
-      }
-
+      if (!file || !API_BASE) return;
       const formData = new FormData();
       formData.append('file', file);
-      const token = (typeof window !== 'undefined' && localStorage.getItem('jwt')) || '';
+      const token = localStorage.getItem('jwt') || '';
       const res = await axios.post(`${API_BASE}/api/v1/enterprise/parse`, formData, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -185,32 +169,19 @@ useEffect(() => {
         },
         maxBodyLength: Infinity,
       });
-
       setExtractedMetadata(res.data);
-
-      // Fetch converted amount immediately for default token
       if (res.data.amount) {
         fetchConvertedAmount('USDC', preferredToken.symbol, res.data.amount);
       }
     } catch (err: any) {
-      console.error('OCR parse failed:', err?.response?.data || err?.message || err);
       setError('Failed to parse the invoice.');
     }
   };
 
-  // Mint NFT and auto-refresh invoice list on success
   const handleMintNFT = async () => {
-    if (!selectedFile || !extractedMetadata || !address || !isReadyToMint) {
-      setError('Please select a file, parse it, and ensure all required fields are filled.');
-      return;
-    }
-    if (!API_BASE) {
-      setError('NEXT_PUBLIC_API_URL is not set.');
-      return;
-    }
+    if (!selectedFile || !extractedMetadata || !address || !isReadyToMint || !API_BASE) return;
     setIsMinting(true);
     setError(null);
-
     try {
       const formData = new FormData();
       formData.append('file', selectedFile);
@@ -219,34 +190,24 @@ useEffect(() => {
       const amountToSend = convertedAmount ?? String(extractedMetadata.amount || '').replace(/[^0-9.]/g, '0');
       formData.append('invoiceAmount', amountToSend);
       formData.append('dueDate', extractedMetadata.dueDate || '');
-
       const customerName = (extractedMetadata.customerName || '').trim();
       formData.append('customerName', customerName);
       formData.append('preferredTokenSymbol', preferredToken.symbol);
-
-      const token = (typeof window !== 'undefined' && localStorage.getItem('jwt')) || '';
-      const res = await axios.post(`${API_BASE}/api/v1/enterprise/mint`, formData, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data',
-        },
+      const token = localStorage.getItem('jwt') || '';
+      await axios.post(`${API_BASE}/api/v1/enterprise/mint`, formData, {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' },
         maxBodyLength: Infinity,
       });
-
-      // Instead of manually adding new invoice, re-fetch all invoices to get up-to-date list
       await fetchInvoices();
-
       setSelectedFile(null);
       setExtractedMetadata(null);
     } catch (err: any) {
-      console.error('Mint failed:', err?.response?.data || err?.message || err);
       setError(err?.response?.data?.message || 'Minting failed.');
     } finally {
       setIsMinting(false);
     }
   };
 
-  // Badge UI for invoice status
   const getStatusBadge = (status: Invoice['status']) => {
     switch (status) {
       case 'Funded':
@@ -262,57 +223,8 @@ useEffect(() => {
 
   return (
     <div className="min-h-screen bg-slate-900 text-white">
-    {isConnected && (
-    <Card className="bg-white/5 backdrop-blur-sm border-white/10 p-4">
-      <CardHeader>
-        <CardTitle>Your Token Balances</CardTitle>
-        <CardDescription className="text-slate-400">
-          Balances for address: {address}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {isLoadingBalances ? (
-          <div className="flex items-center gap-2 text-slate-400">
-            <Loader2 className="animate-spin h-4 w-4" />
-            Loading balances...
-          </div>
-        ) : balanceError ? (
-          <div className="text-red-500">{balanceError}</div>
-        ) : balances ? (
-          <div className="flex flex-wrap gap-4">
-            {Object.entries(balances)
-              // Filter out zero balances (string "0" or "0.0")
-              .filter(([, bal]) => {
-                try {
-                  // parseFloat check > 0 to handle decimal balances
-                  return parseFloat(bal) > 0;
-                } catch {
-                  return false;
-                }
-              })
-              .map(([tokenAddress, bal]) => {
-                // Find symbol using your supportedTokens config if available
-                const token = supportedTokens.find(t => t.address.toLowerCase() === tokenAddress.toLowerCase());
-                const symbol = token?.symbol || tokenAddress;
-                // Format balance nicely
-                const formattedBal = bal.includes('.') ? parseFloat(bal).toFixed(4) : bal;
-
-                return (
-                  <Badge
-                    key={tokenAddress}
-                    className="bg-purple-600/20 text-purple-400 border-purple-600/40 px-3 py-1"
-                  >
-                    {symbol}: {formattedBal}
-                  </Badge>
-                );
-              })}
-          </div>
-        ) : (
-          <div className="text-slate-400">No balances found.</div>
-        )}
-      </CardContent>
-    </Card>
-  )}
+      {/* --- Balances Card --- */}
+      
       <nav className="flex items-center justify-between p-4 md:p-6 backdrop-blur-sm border-b border-white/10 sticky top-0 z-50 bg-slate-900/80">
         <div className="flex items-center gap-4">
           <Link href="/">
@@ -328,6 +240,71 @@ useEffect(() => {
         <ConnectButton />
       </nav>
 
+      {isConnected && (
+        <div className="p-4 md:p-6 max-w-7xl mx-auto">
+          <Card className="bg-white/5 backdrop-blur-sm border-white/10">
+            <CardHeader>
+              <CardTitle>Your Token Balances</CardTitle>
+              <CardDescription className="text-slate-400 break-words">
+                Balances for wallet: {address}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoadingBalances ? (
+                <div className="flex items-center gap-2 text-slate-400">
+                  <Loader2 className="animate-spin h-4 w-4" />
+                  Loading balances...
+                </div>
+              ) : balanceError ? (
+                <div className="flex items-center gap-2 text-red-400">
+                  <AlertCircle className="h-4 w-4" />
+                  {balanceError}
+                </div>
+              ) : balances ? (
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(balances)
+                    .filter(([, bal]) => bal !== '0') // Filter out zero balances directly
+                    .map(([tokenAddress, bal]) => {
+
+                      // --- START OF THE FIX ---
+
+                      // 1. Find the token's metadata from your config to get its decimals.
+                      const token = supportedTokens.find(t => t.address.toLowerCase() === tokenAddress.toLowerCase());
+                      const symbol = token?.symbol || `Token (${tokenAddress.slice(0, 6)}...)`;
+                      
+                      // 2. Determine the correct number of decimals. Default to 18 (for ETH and others) if not found.
+                      const decimals = token?.decimals || 18;
+
+                      // 3. Use ethers.formatUnits() to convert the raw balance string (e.g., in Wei) to a decimal string (e.g., in Ether).
+                      const formattedBal = ethers.formatUnits(bal, decimals);
+                      
+                      // 4. Optionally, format the human-readable number for display to limit decimal places.
+                      const displayBal = parseFloat(formattedBal).toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 6, // Show more precision for small balances
+                      });
+
+                      // --- END OF THE FIX ---
+
+                      return (
+                        <Badge
+                          key={tokenAddress}
+                          variant="outline"
+                          className="bg-purple-600/10 text-purple-300 border-purple-600/30 px-3 py-1 text-sm"
+                        >
+                          {displayBal} {symbol}
+                        </Badge>
+                      );
+                    })}
+                </div>
+              ) : (
+                <div className="text-slate-400">You have no tokens with a balance greater than zero.</div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       <main className="p-4 md:p-6 max-w-7xl mx-auto space-y-8">
         {error && (
           <div className="flex items-center gap-3 text-red-400 bg-red-400/10 p-4 rounded-lg border border-red-400/30">
@@ -336,7 +313,6 @@ useEffect(() => {
           </div>
         )}
 
-        {/* --- Upload + Mint --- */}
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
           <Card className="lg:col-span-3 bg-white/5 backdrop-blur-sm border-white/10">
             <CardHeader>
