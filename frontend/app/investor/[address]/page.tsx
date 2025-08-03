@@ -277,6 +277,32 @@ export default function InvestorDashboard() {
     }
   };
 
+  useEffect(() => {
+      if (!address || !isConnected) {
+        setBalances(null);
+        setBalanceError(null);
+        setIsLoadingBalances(false);
+        return;
+      }
+      const fetchBalances = async () => {
+        setIsLoadingBalances(true);
+        setBalanceError(null);
+        try {
+          const res = await axios.get<Balances>(
+            `/api/balances/balance?chainId=1&walletAddress=${address}`
+          );
+          setBalances(res.data);
+        } catch (err) {
+          console.error('Failed to fetch balances:', err);
+          setBalanceError('Failed to load balances.');
+          setBalances(null);
+        } finally {
+          setIsLoadingBalances(false);
+        }
+      };
+      fetchBalances();
+    }, [address, isConnected]);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
       <nav className="flex items-center justify-between p-6 backdrop-blur-sm border-b border-white/10">
@@ -324,13 +350,13 @@ export default function InvestorDashboard() {
                       // 1. Find the token's metadata from your config to get its decimals.
                       const token = supportedTokens.find(t => t.address.toLowerCase() === tokenAddress.toLowerCase());
                       const symbol = token?.symbol || `Token (${tokenAddress.slice(0, 6)}...)`;
-
+                      
                       // 2. Determine the correct number of decimals. Default to 18 (for ETH and others) if not found.
                       const decimals = token?.decimals || 18;
 
                       // 3. Use ethers.formatUnits() to convert the raw balance string (e.g., in Wei) to a decimal string (e.g., in Ether).
                       const formattedBal = ethers.formatUnits(bal, decimals);
-
+                      
                       // 4. Optionally, format the human-readable number for display to limit decimal places.
                       const displayBal = parseFloat(formattedBal).toLocaleString(undefined, {
                         minimumFractionDigits: 2,
