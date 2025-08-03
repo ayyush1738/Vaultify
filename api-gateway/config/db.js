@@ -28,6 +28,7 @@ export const initDb = async () => {
         invoice_amount NUMERIC NOT NULL,
         funded_amount NUMERIC,
         preferred_token_symbol TEXT,
+        nft_id INTEGER, 
         tx_hash TEXT UNIQUE,
         investor_pubkey TEXT,
         status TEXT CHECK(status IN ('pending', 'funded', 'repaid')) NOT NULL DEFAULT 'pending',
