@@ -1,5 +1,22 @@
 export const supportedTokens = [
   {
+    address: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+    symbol: "USDC",
+    decimals: 6,
+    name: "USD Coin",
+    logoURI: "https://tokens.1inch.io/0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48.png",
+    eip2612: true,
+    tags: [
+      "crosschain",
+      "defi",
+      "GROUP:USDC",
+      "PEG:USD",
+      "RISK:unverified",
+      "stablecoin",
+      "tokens"
+    ],
+  },
+  {
     address: "0x6b175474e89094c44da98b954eedeac495271d0f",
     symbol: "DAI",
     decimals: 18,
@@ -31,22 +48,5 @@ export const supportedTokens = [
       "PEG:ETH",
       "RISK:availability"
     ],
-  },
-  {
-    address: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
-    symbol: "USDC",
-    decimals: 6,
-    name: "USD Coin",
-    logoURI: "https://tokens.1inch.io/0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48.png",
-    eip2612: true,
-    tags: [
-      "crosschain",
-      "defi",
-      "GROUP:USDC",
-      "PEG:USD",
-      "RISK:unverified",
-      "stablecoin",
-      "tokens"
-    ],
-  },
+  }
 ];

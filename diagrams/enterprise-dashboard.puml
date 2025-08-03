@@ -1,7 +1,7 @@
 @startuml
 !theme materia
 
-title Vaultify: SME Invoice Minting Flow
+title Vaultify: SME Invoice NFT Minting Flow
 
 autonumber "<b>[0]</b>"
 
@@ -12,8 +12,8 @@ box "Vaultify Platform" #LightSkyBlue
     participant "Backend (Node.js)" as BE
 end box
 box "External Services" #LightGreen
-    participant "1inch API Stack" as OneInch
-    database "Ethereum Blockchain\n(Smart Contracts)" as Chain
+    database "IPFS\n(Pinata/Gateway)" as IPFS
+    database "Ethereum Blockchain\n(VaultManager Contract)" as Chain
 end box
 
 ' === Main Flow: Invoice Upload and Minting ===
@@ -21,47 +21,40 @@ end box
 User -> FE: Uploads Invoice.pdf
 activate FE
 
-FE -> BE: POST /api/invoices/upload\n(file data + SME address)
+FE -> BE: POST /api/invoices/upload\n(file data)
 activate BE
 note right of BE
-    **Internal Backend Processing:**
-    1. OCR extracts invoice data.
-    2. Data is validated.
-    3. Invoice is hashed for uniqueness.
-    4. ZK proof of non-membership is generated.
+    1. OCR extracts invoice fields\n   (amount, customer, due date).
+    2. Metadata is composed.
+    3. Invoice file + metadata uploaded to IPFS.
 end note
 
-BE -> OneInch: Build Gasless Transaction\n(via 1inch Web3 Transaction API)
-activate OneInch
-note left of OneInch
-    Payload includes:
-    - Target contract: VaultManager
-    - Function call: createVault(...)
-    - Arguments: invoice metadata + ZK proof
-end note
+BE -> IPFS: Upload invoice.pdf + JSON metadata
+activate IPFS
+IPFS --> BE: Return IPFS URL (CID)
+deactivate IPFS
 
-
-OneInch -> Chain: Relay Signed, Gas-Sponsored Transaction
-activate Chain
-note over Chain
-    **On-Chain Execution:**
-    1. ZKVerifier contract confirms proof.
-    2. VaultManager contract mints InvoiceNFT.
-end note
-
-
-Chain --> OneInch: Transaction Confirmation (Receipt)
-deactivate Chain
-
-OneInch --> BE: Return TX Hash & Status
-deactivate OneInch
-
-note over BE: Update internal database:\nMark invoice as "Pending Funding"
-
-BE --> FE: HTTP 201 Response { success: true, ... }
+BE --> FE: Return metadata & ipfsUrl
 deactivate BE
 
-FE -> User: Display "Success!"\n& Update Dashboard UI
+FE -> Chain: Call mintInvoice(token, fundingAmount,\nrepaymentAmount, dueDate, metadataURI)
+activate Chain
+note right of Chain
+    VaultManager:
+    - Mints ERC721 NFT to SME
+    - Stores metadataURI
+    - Sets initial state (unfunded)
+end note
+
+Chain --> FE: Return txHash + tokenId
+deactivate Chain
+
+FE -> BE: POST /api/invoices/minted\n(txHash, tokenId, ipfsUrl, metadata)
+activate BE
+BE --> BE: Save to DB (PostgreSQL)
+deactivate BE
+
+FE -> User: Show “Invoice Minted!”\n& Update Dashboard
 deactivate FE
 
 @enduml

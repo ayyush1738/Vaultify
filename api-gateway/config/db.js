@@ -31,10 +31,10 @@ export const initDb = async () => {
         tx_hash TEXT UNIQUE,
         investor_pubkey TEXT,
         status TEXT CHECK(status IN ('pending', 'funded', 'repaid')) NOT NULL DEFAULT 'pending',
+        due_date TIMESTAMP,
         created_at TIMESTAMPTZ DEFAULT NOW()
         -- Optional fields if needed:
         -- , chain_id INTEGER
-        -- , due_date TIMESTAMPTZ
       );
     `;
 

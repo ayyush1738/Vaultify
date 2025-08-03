@@ -1,0 +1,62 @@
+@startuml
+!theme materia
+
+title Vaultify: Investor Dashboard – Contract Interaction
+
+autonumber "<b>[0]</b>"
+
+actor "Investor" as Inv
+box "Vaultify Platform" #LightSkyBlue
+  participant "Frontend (Next.js)" as FE
+  participant "Backend (Node.js + DB)" as BE
+end box
+
+box "External Services" #LightGreen
+  database "Ethereum / zkSync\nBlockchain" as Chain
+  participant "VaultManager.sol\n(Smart Contract)" as Contract
+end box
+
+== Invoice Discovery ==
+
+Inv -> FE: Connect Wallet & View Listings
+activate FE
+
+FE -> BE: GET /api/invoices/available
+activate BE
+
+BE --> FE: Return unpaid + unfunded invoices
+deactivate BE
+
+FE -> Inv: Display invoice list (NFT metadata, amount, due date)
+deactivate FE
+
+== Funding Invoice ==
+
+Inv -> FE: Click "Fund Invoice" on a listing
+
+FE -> Contract: fundInvoice(invoiceId)
+activate Contract
+note right of Contract
+  Requires:
+  - ERC-20 token approval
+  - Investor must transfer tokens to SME
+end note
+
+Contract --> Chain: Transfer funds\nSet investor in invoice
+deactivate Contract
+
+Chain --> FE: TX receipt
+FE -> BE: Update invoice in DB: funded=true, investor=wallet
+deactivate Chain
+
+FE -> Inv: Show success toast + TX link
+
+== Post-Funding Flow ==
+
+note over Chain
+  Later, when SME repays:
+  - SME calls repayInvoice()
+  - Contract sends repayment to investor
+end note
+
+@enduml

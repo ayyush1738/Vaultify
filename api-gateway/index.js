@@ -5,6 +5,7 @@ import authRouter from './routes/auth.routes.js';
 import invoiceRouter from './routes/enterprise.routes.js'
 import { initBlockchain } from './services/blockchain.service.js';
 import smeRoutes from './routes/invoice.routes.js'
+import investorRouter from './routes/investor.routes.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -31,6 +32,7 @@ try {
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/enterprise', invoiceRouter);
 app.use('/api/v1/invoices', smeRoutes);
+app.use('/api/v1/investor', investorRouter);
 
 app.listen(PORT, () => {
     console.log(`Server is running on port: ${PORT}`);

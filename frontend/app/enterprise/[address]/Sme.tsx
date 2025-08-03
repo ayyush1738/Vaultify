@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount, useChainId } from 'wagmi';
-import { ArrowLeft, FileText, CheckCircle, Clock, Loader2, AlertCircle, Inbox } from 'lucide-react';
+import { ArrowLeft, AlertCircle, Inbox, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import axios from 'axios';
 import ExtractedMetadata from '../components/ExtractedMetadata';
@@ -39,7 +39,10 @@ export default function SMEDashboard() {
   const [isLoadingInvoices, setIsLoadingInvoices] = useState(true);
   const [convertedAmount, setConvertedAmount] = useState<string | null>(null);
 
+  const chainId = useChainId();
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL;
 
+  // Fetch converted amount from /api/quote
   const fetchConvertedAmount = async (
     fromSymbol: string,
     toSymbol: string,
@@ -96,54 +99,42 @@ export default function SMEDashboard() {
     }
   };
 
-
-
-
-  // FIX: Include the customerName check in `isReadyToMint` to align with the minting logic
+  // Flag to determine if ready to mint
   const isReadyToMint =
     !!extractedMetadata &&
     !!extractedMetadata.customerName &&
     String(extractedMetadata.amount || '').replace(/[^0-9.]/g, '').length > 0;
 
-  const chainId = useChainId();
+  // Extracted fetchInvoices to be reusable
+  const fetchInvoices = async () => {
+    if (!address || !API_BASE) {
+      setIsLoadingInvoices(false);
+      setInvoices([]); // Clear invoices if no address/API_BASE
+      return;
+    }
+    setIsLoadingInvoices(true);
+    try {
+      const token = localStorage.getItem('jwt') || '';
+      const res = await axios.get(`${API_BASE}/api/v1/invoices/sme/${address}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      setInvoices(res.data.invoices);
+    } catch (err: any) {
+      console.error('Failed to fetch invoices:', err?.response?.data || err?.message || err);
+      setError('Failed to load invoices.');
+    } finally {
+      setIsLoadingInvoices(false);
+    }
+  };
 
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL;
-
-  // ... (imports)
-
-  // This assumes your API_BASE environment variable is correctly set
-
+  // Call fetchInvoices on mount and when address/API_BASE change
   useEffect(() => {
-    const fetchInvoices = async () => {
-      // Check for both address and API_BASE before making the call
-      if (!address || !API_BASE) {
-        setIsLoadingInvoices(false); // Make sure to stop loading if conditions aren't met
-        return;
-      }
-
-      try {
-        const token = localStorage.getItem('jwt') || '';
-        const res = await axios.get(`${API_BASE}/api/v1/invoices/sme/${address}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        // FIX: Access the 'invoices' property from the response data
-        console.log(res)
-        setInvoices(res.data.invoices);
-      } catch (err: any) {
-        console.error('Failed to fetch invoices:', err?.response?.data || err?.message || err);
-        // You might want to set an error state here as well
-        // setError('Failed to load invoices.'); 
-      } finally {
-        setIsLoadingInvoices(false);
-      }
-    };
-
     fetchInvoices();
-    // Add dependencies to the useEffect hook
   }, [address, API_BASE]);
 
+  // Handle file selection for invoice document
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     try {
       setError(null);
@@ -169,14 +160,20 @@ export default function SMEDashboard() {
       });
 
       setExtractedMetadata(res.data);
+
+      // Fetch converted amount immediately for default token
+      if (res.data.amount) {
+        fetchConvertedAmount('USDC', preferredToken.symbol, res.data.amount);
+      }
     } catch (err: any) {
       console.error('OCR parse failed:', err?.response?.data || err?.message || err);
       setError('Failed to parse the invoice.');
     }
   };
 
+  // Mint NFT and auto-refresh invoice list on success
   const handleMintNFT = async () => {
-    if (!selectedFile || !extractedMetadata || !address || !isReadyToMint) { // FIX: Use the `isReadyToMint` check
+    if (!selectedFile || !extractedMetadata || !address || !isReadyToMint) {
       setError('Please select a file, parse it, and ensure all required fields are filled.');
       return;
     }
@@ -194,14 +191,11 @@ export default function SMEDashboard() {
       formData.append('chainId', String(chainId));
       const amountToSend = convertedAmount ?? String(extractedMetadata.amount || '').replace(/[^0-9.]/g, '0');
       formData.append('invoiceAmount', amountToSend);
-
       formData.append('dueDate', extractedMetadata.dueDate || '');
-      // FIX: Ensure customerName is always a string and not null
+
       const customerName = (extractedMetadata.customerName || '').trim();
       formData.append('customerName', customerName);
       formData.append('preferredTokenSymbol', preferredToken.symbol);
-
-      console.log(preferredToken);
 
       const token = (typeof window !== 'undefined' && localStorage.getItem('jwt')) || '';
       const res = await axios.post(`${API_BASE}/api/v1/enterprise/mint`, formData, {
@@ -212,9 +206,9 @@ export default function SMEDashboard() {
         maxBodyLength: Infinity,
       });
 
+      // Instead of manually adding new invoice, re-fetch all invoices to get up-to-date list
+      await fetchInvoices();
 
-      const newInvoice: Invoice = res.data;
-      setInvoices(prev => [newInvoice, ...prev]);
       setSelectedFile(null);
       setExtractedMetadata(null);
     } catch (err: any) {
@@ -225,8 +219,7 @@ export default function SMEDashboard() {
     }
   };
 
-  // FIX: This function is defined but not used in this component.
-  // Assuming it's meant to be passed to `InvoiceTableCard`.
+  // Badge UI for invoice status
   const getStatusBadge = (status: Invoice['status']) => {
     switch (status) {
       case 'Funded':
@@ -305,7 +298,6 @@ export default function SMEDashboard() {
                       }
                     }
                   }}
-
                   className="w-full bg-slate-800 text-white p-2 rounded-md border border-white/20 focus:ring-2 focus:ring-purple-500"
                 >
                   {supportedTokens.map((token) => (
@@ -318,7 +310,7 @@ export default function SMEDashboard() {
 
               <Button
                 onClick={handleMintNFT}
-                disabled={!isConnected || isMinting || !isReadyToMint} // FIX: simplified the disabled check
+                disabled={!isConnected || isMinting || !isReadyToMint}
                 className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isMinting ? (
@@ -337,7 +329,6 @@ export default function SMEDashboard() {
             isReadyToMint={isReadyToMint}
             setExtractedMetadata={setExtractedMetadata}
           />
-
         </div>
 
         <div className="space-y-4">
@@ -353,7 +344,7 @@ export default function SMEDashboard() {
               <p className="text-slate-400">No invoices found. Upload one to get started!</p>
             </div>
           ) : (
-            <InvoiceTableCard invoices={invoices} getStatusBadge={getStatusBadge} /> // FIX: Pass getStatusBadge as a prop
+            <InvoiceTableCard invoices={invoices} getStatusBadge={getStatusBadge} />
           )}
         </div>
       </main>

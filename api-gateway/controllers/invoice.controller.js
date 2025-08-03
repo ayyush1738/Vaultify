@@ -34,26 +34,27 @@ export const mintInvoice = async (req, res) => {
     const {
       nftId,
       txHash,
-      fundingAmount,
       repaymentAmount,
       preferredToken,
     } = mintResult;
 
     // 3. Save to DB
-    await query(
-      `INSERT INTO enterpriseInv 
-  (sme_address, customer_name, ipfs_cid, invoice_amount, funded_amount, preferred_token_symbol, tx_hash, investor_pubkey, status, created_at)
-  VALUES ($1, $2, $3, $4, $5, $6, $7, NULL, 'pending', NOW())`,
-      [
-        smeAddress,
-        customerName,
-        metadataIpfsHash.replace('ipfs://', ''),
-        parseFloat(invoiceAmount),
-        parseFloat(fundingAmount),
-        preferredToken,
-        txHash,
-      ]
-    );
+    // Corrected mintInvoice DB insert and due_date fix
+await query(
+  `INSERT INTO enterpriseInv 
+  (sme_address, customer_name, ipfs_cid, invoice_amount, funded_amount, preferred_token_symbol, tx_hash, investor_pubkey, status, due_date, created_at)
+  VALUES ($1, $2, $3, $4, NULL, $5, $6, NULL, 'pending', $7, NOW())`,
+  [
+    smeAddress,
+    customerName,
+    metadataIpfsHash.replace('ipfs://', ''),
+    parseFloat(invoiceAmount),
+    preferredTokenSymbol,
+    txHash,
+    new Date(dueDate),
+  ]
+);
+
 
     res.status(201).json({
       message: "Invoice minted successfully.",
