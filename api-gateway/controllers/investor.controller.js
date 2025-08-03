@@ -34,7 +34,7 @@ export const fundInvoice = async (req, res) => {
 
     const result = await blockchainService.fundInvoiceOnChain({
       investorAddress,
-      nftId: invoice.tx_hash, // or another identifier
+      nftId: invoice.nft_id || invoice.tx_hash, // make sure this is correct ID used in mint
       amount: invoice.invoice_amount,
       tokenSymbol: invoice.preferred_token_symbol,
     });

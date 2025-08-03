@@ -80,10 +80,11 @@ export default function InvestorDashboard() {
         customerName: inv.customer_name,
         invoiceAmount: inv.invoice_amount,
         preferredTokenSymbol: inv.preferred_token_symbol,
-        status: 'Pending Funding', // you can update this based on real logic
-        dueDate: '', // if not provided by backend
-        yieldPercent: '', // optional placeholder
+        status: 'Pending Funding',
+        dueDate: new Date(inv.due_date).toLocaleDateString(), // ✅ format it here
+        yieldPercent: '2%', // ✅ temp static if needed
       }));
+
 
       setInvoices(mapped);
       setError(null);
@@ -100,9 +101,54 @@ export default function InvestorDashboard() {
     fetchInvoices();
   }, [address, API_BASE]);
 
-  const handleDeposit = () => {
-    console.log(`Depositing ${depositAmount} ${selectedToken}`);
+  const handleDeposit = async () => {
+    if (!depositAmount || !selectedToken || !address || !API_BASE) {
+      alert("Please connect wallet and fill all fields.");
+      return;
+    }
+
+    const token = localStorage.getItem("jwt");
+    if (!token) {
+      alert("Please login to continue.");
+      return;
+    }
+
+    try {
+      const invoiceToFund = invoices.find(
+        (inv) => inv.preferredTokenSymbol === selectedToken && inv.status === "Pending Funding"
+      );
+
+      if (!invoiceToFund) {
+        alert(`No available invoice for ${selectedToken}.`);
+        return;
+      }
+
+      const res = await axios.post(
+        `${API_BASE}/api/v1/investor/fund/${invoiceToFund.id}`,
+        {
+          amount: depositAmount,
+          tokenSymbol: selectedToken,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (res.data.success) {
+        alert("✅ Successfully funded invoice.");
+        fetchInvoices(); // Refresh the list
+        setDepositAmount("");
+      } else {
+        throw new Error(res.data.message || "Failed to fund.");
+      }
+    } catch (err: any) {
+      console.error("❌ Funding error:", err);
+      alert("❌ Failed to fund: " + (err?.response?.data?.message || err.message));
+    }
   };
+
 
   const getStatusBadge = (status: Invoice['status']) => {
     switch (status) {
@@ -135,96 +181,63 @@ export default function InvestorDashboard() {
       </nav>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Deposit Form */}
-          <Card className="bg-white/5 backdrop-blur-sm border-white/10">
-            <CardHeader>
-              <CardTitle className="text-white">Deposit into Vault</CardTitle>
-              <CardDescription className="text-slate-300">
-                Deposit ETH or USDC to start earning yield from invoice funding
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="token" className="text-slate-300">
-                  Token
-                </Label>
-                <Select
-                  value={selectedToken}
-                  onValueChange={(value) => setSelectedToken(value)}
-                >
-                  <SelectTrigger className="bg-white/5 border-white/10 text-white">
-                    <SelectValue placeholder="Select token" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-800 border-white/10">
-                    <SelectItem value="ETH">ETH - Ethereum</SelectItem>
-                    <SelectItem value="USDC">USDC - USD Coin</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="amount" className="text-slate-300">
-                  Amount
-                </Label>
-                <Input
-                  id="amount"
-                  type="number"
-                  placeholder="0.0"
-                  value={depositAmount}
-                  onChange={(e) => setDepositAmount(e.target.value)}
-                  className="bg-white/5 border-white/10 text-white placeholder:text-slate-400"
-                />
-                <div className="text-xs text-slate-400">
-                  Available: {selectedToken === 'ETH' ? balances.ETH : balances.USDC}{' '}
-                  {selectedToken}
-                </div>
-              </div>
-
-              <Button
-                onClick={handleDeposit}
-                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
-                disabled={!depositAmount || !isConnected}
+        {/* Deposit Form */}
+        <Card className="bg-white/5 backdrop-blur-sm border-white/10">
+          <CardHeader>
+            <CardTitle className="text-white">Deposit into Vault</CardTitle>
+            <CardDescription className="text-slate-300">
+              Deposit ETH or USDC to start earning yield from invoice funding
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="token" className="text-slate-300">
+                Token
+              </Label>
+              <Select
+                value={selectedToken}
+                onValueChange={(value) => setSelectedToken(value)}
               >
-                Deposit into Vault
-              </Button>
-            </CardContent>
-          </Card>
+                <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                  <SelectValue placeholder="Select token" />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-800 border-white/10">
+                  <SelectItem value="ETH">ETH - Ethereum</SelectItem>
+                  <SelectItem value="USDC">USDC - USD Coin</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-          {/* Vault Summary */}
-          <Card className="bg-white/5 backdrop-blur-sm border-white/10">
-            <CardHeader>
-              <CardTitle className="text-white">Your Vault Summary</CardTitle>
-              <CardDescription className="text-slate-300">
-                Overview of your current positions and earnings
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex justify-between items-center p-4 bg-white/5 rounded-lg border border-white/10">
-                <div>
-                  <div className="text-sm text-slate-400">Total Deposited</div>
-                  <div className="text-2xl font-bold text-white">{vaultStats.totalDeposited}</div>
-                </div>
-                <DollarSign className="h-8 w-8 text-green-400" />
+            <div className="space-y-2">
+              <Label htmlFor="amount" className="text-slate-300">
+                Amount
+              </Label>
+              <Input
+                id="amount"
+                type="number"
+                placeholder="0.0"
+                value={depositAmount}
+                onChange={(e) => setDepositAmount(e.target.value)}
+                className="bg-white/5 border-white/10 text-white placeholder:text-slate-400"
+              />
+              <div className="text-xs text-slate-400">
+                Available: {selectedToken === 'ETH' ? balances.ETH : balances.USDC}{' '}
+                {selectedToken}
               </div>
+            </div>
 
-              <div className="flex justify-between items-center p-4 bg-white/5 rounded-lg border border-white/10">
-                <div>
-                  <div className="text-sm text-slate-400">LP Tokens Held</div>
-                  <div className="text-2xl font-bold text-white">{vaultStats.lpTokens}</div>
-                </div>
-                <TrendingUp className="h-8 w-8 text-purple-400" />
-              </div>
+            <Button
+              onClick={handleDeposit}
+              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+              disabled={!depositAmount || !isConnected}
+            >
+              Deposit into Vault
+            </Button>
+          </CardContent>
+        </Card>
 
-              <div className="flex justify-between items-center p-4 bg-white/5 rounded-lg border border-white/10">
-                <div>
-                  <div className="text-sm text-slate-400">Current APY</div>
-                  <div className="text-2xl font-bold text-white">{vaultStats.estimatedAPY}</div>
-                </div>
-                <TrendingUp className="h-8 w-8 text-green-400" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        {/* Vault Summary */}
+      </div>
 
       <div className="p-6 max-w-7xl mx-auto">
         {/* Table */}
@@ -244,7 +257,7 @@ export default function InvestorDashboard() {
               <tr key={inv.id}>
                 <td className="p-3">{inv.id}</td>
                 <td className="p-3">{inv.customerName}</td>
-                <td className="p-3">{Number(inv.invoiceAmount).toLocaleString()}</td>
+                <td className="p-3">${Number(inv.invoiceAmount).toLocaleString()}</td>
                 <td className="p-3">{getStatusBadge(inv.status)}</td>
                 <td className="p-3">{inv.dueDate}</td>
               </tr>

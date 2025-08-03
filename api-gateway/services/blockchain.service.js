@@ -25,50 +25,84 @@ export function initBlockchain() {
 }
 
 export async function mintInvoiceOnChain(data) {
-    const allTokens = getSupportedTokens; // 🛠️ FIX: You forgot to call the function
+    const allTokens = getSupportedTokens; // ✅ Fix
     const tokenInfo = allTokens.find((t) => t.symbol === data.preferredTokenSymbol);
 
     if (!tokenInfo || !tokenInfo.address) {
         throw new Error(`❌ Unsupported token: ${data.preferredTokenSymbol}`);
     }
 
-    const fundingAmount = parseFloat(data.invoiceAmount) * 0.98;
-    const repaymentAmount = parseFloat(data.invoiceAmount);
+    const decimals = tokenInfo.decimals ?? 18;
 
-    const fundingAmountBI = ethers.parseUnits(
-        fundingAmount.toFixed(tokenInfo.decimals || 18),
-        tokenInfo.decimals || 18
-    );
-    const repaymentAmountBI = ethers.parseUnits(
-        repaymentAmount.toFixed(tokenInfo.decimals || 18),
-        tokenInfo.decimals || 18
-    );
+    // Safe math for funding and repayment
+    const baseAmountBI = ethers.parseUnits(data.invoiceAmount, decimals);
+    const fundingAmountBI = baseAmountBI * 98n / 100n;
+    const repaymentAmountBI = baseAmountBI;
 
-    const tx = await vaultManagerContract.mintInvoice(
-        tokenInfo.address,
-        fundingAmountBI,
-        repaymentAmountBI,
-        Math.floor(new Date(data.dueDate).getTime() / 1000),
-        `ipfs://${data.tokenURI}`
-    );
+    const metadataURI = data.tokenURI.startsWith('ipfs://')
+        ? data.tokenURI
+        : `ipfs://${data.tokenURI}`;
 
-    const receipt = await tx.wait();
+    try {
+        const tx = await vaultManagerContract.mintInvoice(
+            tokenInfo.address,
+            fundingAmountBI,
+            repaymentAmountBI,
+            Math.floor(new Date(data.dueDate).getTime() / 1000),
+            metadataURI
+        );
 
-    const topic = ethers.id("InvoiceMinted(uint256,address,string)");
-    const log = receipt.logs.find((l) => l.topics[0] === topic);
-    if (!log) {
-        throw new Error("❌ InvoiceMinted event not found in transaction logs.");
+        const receipt = await tx.wait();
+
+        const topic = ethers.id("InvoiceMinted(uint256,address,string)");
+        const log = receipt.logs.find((l) => l.topics[0] === topic);
+        if (!log) throw new Error("InvoiceMinted event not found.");
+
+        const parsedLog = vaultManagerContract.interface.parseLog(log);
+        const nftId = parsedLog.args.nftId.toString();
+
+        return {
+            nftId,
+            txHash: tx.hash,
+            fundingAmount: ethers.formatUnits(fundingAmountBI, decimals),
+            repaymentAmount: ethers.formatUnits(repaymentAmountBI, decimals),
+            preferredToken: tokenInfo.symbol,
+            tokenAddress: tokenInfo.address
+        };
+    } catch (err) {
+        console.error("❌ mintInvoice failed:", err);
+        throw new Error("Failed to mint invoice on-chain");
+    }
+}
+
+
+export async function fundInvoiceOnChain({ investorAddress, nftId, amount, tokenSymbol }) {
+    const allTokens = getSupportedTokens; // check if it's a function or array
+    const tokenInfo = allTokens.find(t => t.symbol === tokenSymbol);
+
+    if (!tokenInfo || !tokenInfo.address) {
+        throw new Error(`Unsupported token: ${tokenSymbol}`);
     }
 
-    const parsedLog = vaultManagerContract.interface.parseLog(log);
-    const nftId = parsedLog.args.nftId.toString();
+    const decimals = tokenInfo.decimals || 18;
+    const amountInWei = ethers.parseUnits(amount, decimals);
+
+    const erc20 = new ethers.Contract(tokenInfo.address, [
+        "function approve(address spender, uint256 amount) public returns (bool)",
+        "function allowance(address owner, address spender) public view returns (uint256)"
+    ], signer);
+
+    const allowance = await erc20.allowance(investorAddress, vaultManagerContract.target);
+    if (allowance < amountInWei) {
+        const approvalTx = await erc20.approve(vaultManagerContract.target, amountInWei);
+        await approvalTx.wait();
+    }
+
+    const fundTx = await vaultManagerContract.fundInvoice(nftId);
+    const receipt = await fundTx.wait();
 
     return {
-        nftId,
-        txHash: tx.hash,
-        fundingAmount,
-        repaymentAmount,
-        preferredToken: tokenInfo.symbol,
-        tokenAddress: tokenInfo.address
+        txHash: fundTx.hash,
+        status: receipt.status === 1 ? 'success' : 'failed'
     };
 }
