@@ -5,7 +5,7 @@ import * as blockchainService from '../services/blockchain.service.js';
 export const getAvailableInvoices = async (req, res) => {
   try {
     const { rows } = await query(`
-      SELECT id, customer_name, invoice_amount, ipfs_cid, preferred_token_symbol, due_date
+      SELECT id, customer_name, invoice_amount, funded_amount, ipfs_cid, preferred_token_symbol, due_date
       FROM enterpriseInv 
       WHERE status = 'pending'
       ORDER BY created_at ASC

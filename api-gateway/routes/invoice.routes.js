@@ -17,6 +17,7 @@ router.get('/sme/:address', async (req, res) => {
         ipfs_cid,
         tx_hash,
         invoice_amount,
+        funded_amount,
         preferred_token_symbol,
         status
       FROM enterpriseInv
@@ -38,7 +39,7 @@ router.get('/sme/:address', async (req, res) => {
       txHash: inv.tx_hash,
       ipfsHash: inv.ipfs_cid,
       createdAt: inv.created_at,
-      fundedAmount: null,
+      fundedAmount: inv.funded_amount,
     }));
 
     console.log(formatted)

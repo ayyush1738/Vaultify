@@ -1,6 +1,6 @@
 import * as ipfsService from '../services/ipfs.service.js';
 import * as blockchainService from '../services/blockchain.service.js';
-import * as ocrService from '../services/ocr.service.js';
+import * as ocrService from '../services/ocr.service.js'; // Assuming you use this
 import { query } from '../config/db.js';
 
 export const mintInvoice = async (req, res) => {
@@ -16,11 +16,11 @@ export const mintInvoice = async (req, res) => {
       invoiceAmount,
       dueDate,
       customerName,
+      preferredTokenSymbol, // Pass this to include in metadata
     });
 
     // 2. Mint on Blockchain
     console.log('minting started');
-
     const mintResult = await blockchainService.mintInvoiceOnChain({
       smeAddress,
       invoiceAmount,
@@ -28,33 +28,37 @@ export const mintInvoice = async (req, res) => {
       tokenURI: metadataIpfsHash,
       preferredTokenSymbol,
     });
-
     console.log('minting finished');
 
+    // Destructure all the necessary data returned from the service
     const {
       nftId,
       txHash,
-      repaymentAmount,
-      preferredToken,
+      fundingAmount, // <-- You need this value!
     } = mintResult;
 
-    // 3. Save to DB
-    // Corrected mintInvoice DB insert and due_date fix
-await query(
-  `INSERT INTO enterpriseInv 
-  (sme_address, customer_name, ipfs_cid, invoice_amount, funded_amount, preferred_token_symbol, tx_hash, investor_pubkey, status, due_date, created_at)
-  VALUES ($1, $2, $3, $4, NULL, $5, $6, NULL, 'pending', $7, NOW())`,
-  [
-    smeAddress,
-    customerName,
-    metadataIpfsHash.replace('ipfs://', ''),
-    parseFloat(invoiceAmount),
-    preferredTokenSymbol,
-    txHash,
-    new Date(dueDate),
-  ]
-);
+    // A final check to prevent database errors
+    if (!nftId || !fundingAmount) {
+        throw new Error("Failed to get critical data (nftId, fundingAmount) from blockchain service.");
+    }
 
+    // 3. Save to DB with the CORRECT funding_amount
+    await query(
+      `INSERT INTO enterpriseInv 
+        (sme_address, customer_name, ipfs_cid, invoice_amount, funded_amount, preferred_token_symbol, nft_id, tx_hash, status, due_date)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending', $9)`,
+      [
+        smeAddress,
+        customerName,
+        metadataIpfsHash.replace('ipfs://', ''),
+        parseFloat(invoiceAmount),
+        parseFloat(fundingAmount), 
+        preferredTokenSymbol,
+        nftId,
+        txHash,
+        new Date(dueDate),
+      ]
+    );
 
     res.status(201).json({
       message: "Invoice minted successfully.",
@@ -68,11 +72,11 @@ await query(
   }
 };
 
+// The parseInvoice function remains the same
 export const parseInvoice = async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ message: "No file uploaded." });
   }
-
   try {
     const extractedData = await ocrService.parseInvoiceWithOCR(req.file);
     res.json(extractedData);

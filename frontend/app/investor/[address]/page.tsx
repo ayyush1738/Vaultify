@@ -113,6 +113,8 @@ export default function InvestorDashboard() {
 
   const depositAmount = selectedInvoice?.fundingAmount.toString() || '';
 
+  console.log(depositAmount)
+
   const handleDeposit = async () => {
     if (!depositAmount || !address || !API_BASE || !selectedInvoice) {
       alert('Please connect wallet and select an invoice.');
