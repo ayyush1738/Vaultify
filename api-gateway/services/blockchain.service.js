@@ -77,32 +77,29 @@ export async function mintInvoiceOnChain(data) {
 
 
 export async function fundInvoiceOnChain({ investorAddress, nftId, amount, tokenSymbol }) {
-    const allTokens = getSupportedTokens; // check if it's a function or array
-    const tokenInfo = allTokens.find(t => t.symbol === tokenSymbol);
+  const allTokens = getSupportedTokens; // make sure this is an array or a resolved function
+  const tokenInfo = allTokens.find(t => t.symbol === tokenSymbol);
 
-    if (!tokenInfo || !tokenInfo.address) {
-        throw new Error(`Unsupported token: ${tokenSymbol}`);
-    }
+  if (!tokenInfo || !tokenInfo.address) {
+    throw new Error(`Unsupported token: ${tokenSymbol}`);
+  }
 
-    const decimals = tokenInfo.decimals || 18;
-    const amountInWei = ethers.parseUnits(amount, decimals);
+  // Convert amount string to BigNumber with proper decimals
+  const decimals = tokenInfo.decimals || 18;
+  const amountInWei = ethers.parseUnits(amount, decimals);
 
-    const erc20 = new ethers.Contract(tokenInfo.address, [
-        "function approve(address spender, uint256 amount) public returns (bool)",
-        "function allowance(address owner, address spender) public view returns (uint256)"
-    ], signer);
+  // **IMPORTANT:** Do NOT approve here! Investor must approve before calling fundInvoice.
 
-    const allowance = await erc20.allowance(investorAddress, vaultManagerContract.target);
-    if (allowance < amountInWei) {
-        const approvalTx = await erc20.approve(vaultManagerContract.target, amountInWei);
-        await approvalTx.wait();
-    }
+  // Call fundInvoice function on VaultManager contract from backend wallet (signer)
+  const fundTx = await vaultManagerContract.fundInvoice(nftId);
+  const receipt = await fundTx.wait();
 
-    const fundTx = await vaultManagerContract.fundInvoice(nftId);
-    const receipt = await fundTx.wait();
+  if (receipt.status !== 1) {
+    throw new Error('Transaction failed');
+  }
 
-    return {
-        txHash: fundTx.hash,
-        status: receipt.status === 1 ? 'success' : 'failed'
-    };
+  return {
+    txHash: fundTx.hash,
+    status: 'success'
+  };
 }

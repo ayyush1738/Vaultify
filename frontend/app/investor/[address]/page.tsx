@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { ethers } from 'ethers';
-import { useAccount, useWalletClient  } from 'wagmi';
+import { ethers, BrowserProvider } from 'ethers';
+import { useAccount, useWalletClient } from 'wagmi';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -19,8 +19,8 @@ import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 
-// USDC token contract address and minimal ABI for approve
-const USDC_CONTRACT_ADDRESS = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'; // Mainnet USDC address, change if needed
+// Replace with your Sepolia (or testnet) USDC contract address
+const USDC_CONTRACT_ADDRESS = '0x65aFADD39029741B3b8f0756952C74678c9cEC93';
 
 const ERC20_ABI = [
   'function approve(address spender, uint256 amount) external returns (bool)',
@@ -34,7 +34,7 @@ type Invoice = {
   invoiceAmount: number;
   fundingAmount: number;
   repaymentAmount: number;
-  preferredTokenSymbol: string; // Should be 'USDC'
+  preferredTokenSymbol: string;
   status: 'Pending Funding' | 'Funded' | 'Repaid';
   dueDate: string;
   yieldPercent: string;
@@ -42,7 +42,8 @@ type Invoice = {
 
 export default function InvestorDashboard() {
   const { address, isConnected } = useAccount();
-const { data: walletClient } = useWalletClient();
+  const { data: walletClient } = useWalletClient();
+
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [isLoadingInvoices, setIsLoadingInvoices] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,17 +52,21 @@ const { data: walletClient } = useWalletClient();
   const [approvalDone, setApprovalDone] = useState(false);
 
   const API_BASE = process.env.NEXT_PUBLIC_API_URL;
+  const VAULT_MANAGER_ADDRESS = process.env.NEXT_PUBLIC_VAULT_MANAGER_ADDRESS || '';
 
-  // Mock wallet balance (replace with real data if needed)
-  const balances = {
-    USDC: 1250.0,
-  };
-  
-  const signer = walletClient ? new ethers.providers.Web3Provider(walletClient).getSigner() : undefined;
-
-
+  const balances = { USDC: 1250.0 }; // Dummy balance, replace with real balance if you want
   const selectedToken = 'USDC';
 
+  // Create ethers provider/signer from wagmi walletClient
+  const provider = walletClient ? new BrowserProvider(walletClient) : undefined;
+
+  // Get signer (async call)
+  const getSigner = async () => {
+    if (!provider) return undefined;
+    return provider.getSigner();
+  };
+
+  // Fetch available invoices from your backend
   const fetchInvoices = async () => {
     if (!address || !API_BASE) {
       setIsLoadingInvoices(false);
@@ -123,34 +128,39 @@ const { data: walletClient } = useWalletClient();
   const selectedInvoice = invoices.find((inv) => inv.id === selectedInvoiceId);
   const depositAmount = selectedInvoice?.fundingAmount.toString() || '';
 
-  // Function to check allowance
-  const checkAllowance = async () => {
-    if (!signer || !address || !selectedInvoice) return false;
+  // Check allowance of VaultManager contract to spend user's USDC
+  const checkAllowance = async (signer: ethers.Signer) => {
+    if (!address || !selectedInvoice) return false;
     try {
       const usdcContract = new ethers.Contract(USDC_CONTRACT_ADDRESS, ERC20_ABI, signer);
-      const allowance = await usdcContract.allowance(address, /*spender*/ process.env.NEXT_PUBLIC_VAULT_MANAGER_ADDRESS);
-      // USDC usually 6 decimals, so parse depositAmount accordingly
-      const decimals = await usdcContract.decimals();
+      const allowance = await usdcContract.allowance(address, VAULT_MANAGER_ADDRESS);
+      const decimals = 6;
       const requiredAllowance = ethers.parseUnits(depositAmount, decimals);
       return allowance.gte(requiredAllowance);
     } catch (err) {
-      console.error('Error while checking allowance:', err);
+      console.error('Error checking allowance:', err);
       return false;
     }
   };
 
-  // Function to approve spending
+  // Approve VaultManager contract to spend USDC tokens on behalf of user
   const approveUSDC = async () => {
-    if (!signer || !selectedInvoice) {
+    if (!address || !selectedInvoice) {
       alert('Connect wallet and select an invoice first.');
       return;
     }
     setIsApproving(true);
     try {
+      const signer = await getSigner();
+      if (!signer) {
+        alert('Cannot get signer. Please reconnect wallet.');
+        setIsApproving(false);
+        return;
+      }
       const usdcContract = new ethers.Contract(USDC_CONTRACT_ADDRESS, ERC20_ABI, signer);
-      const decimals = await usdcContract.decimals();
+      const decimals = 6;
       const amountToApprove = ethers.parseUnits(depositAmount, decimals);
-      const tx = await usdcContract.approve(process.env.NEXT_PUBLIC_VAULT_MANAGER_ADDRESS!, amountToApprove);
+      const tx = await usdcContract.approve(VAULT_MANAGER_ADDRESS, amountToApprove);
       await tx.wait();
       setApprovalDone(true);
       alert('✅ USDC approved successfully!');
@@ -162,32 +172,29 @@ const { data: walletClient } = useWalletClient();
     }
   };
 
-  // Handle the full deposit flow
+  const verifyAllowance = async () => {
+    const signer = await getSigner();
+    if (!signer || !address || !selectedInvoice) return false;
+    const usdcContract = new ethers.Contract(USDC_CONTRACT_ADDRESS, ERC20_ABI, signer);
+    const allowance = await usdcContract.allowance(address, VAULT_MANAGER_ADDRESS);
+    const required = ethers.parseUnits(selectedInvoice.fundingAmount.toString(), 6);
+    return allowance.gte(required);
+  };
+  // Handle funding invoice call to your backend API
   const handleDeposit = async () => {
     if (!depositAmount || !address || !API_BASE || !selectedInvoice) {
       alert('Please connect wallet and select an invoice.');
       return;
     }
-
+    if (!approvalDone) {
+      alert('Please approve USDC spending before funding.');
+      return;
+    }
     const token = localStorage.getItem('jwt');
     if (!token) {
       alert('Please login to continue.');
       return;
     }
-
-    if (!signer) {
-      alert('Please connect your wallet.');
-      return;
-    }
-
-    // Check allowance and approve if necessary
-    const hasAllowance = await checkAllowance();
-    if (!hasAllowance) {
-      alert('USDC approval required. Please approve before funding.');
-      return;
-    }
-
-    // Proceed to fund
     try {
       const res = await axios.post(
         `${API_BASE}/api/v1/investor/fund/${selectedInvoice.id}`,
@@ -200,20 +207,20 @@ const { data: walletClient } = useWalletClient();
           headers: { Authorization: `Bearer ${token}` },
         }
       );
-
       if (res.data.success) {
         alert('✅ Successfully funded invoice.');
-        setApprovalDone(false); // Reset approval flag for next funding
+        setApprovalDone(false); // reset for next funding
         fetchInvoices();
       } else {
         throw new Error(res.data.message || 'Failed to fund.');
       }
     } catch (err: any) {
-      console.error('❌ Funding error:', err);
+      console.error('Funding error:', err);
       alert('❌ Failed to fund: ' + (err?.response?.data?.message || err.message));
     }
   };
 
+  // Status badge component
   const getStatusBadge = (status: Invoice['status']) => {
     switch (status) {
       case 'Funded':
@@ -259,7 +266,7 @@ const { data: walletClient } = useWalletClient();
               value={selectedInvoiceId || ''}
               onChange={(e) => {
                 setSelectedInvoiceId(e.target.value || null);
-                setApprovalDone(false); // reset approval when invoice changes
+                setApprovalDone(false); // Reset approval when invoice changes
               }}
             >
               {invoices.length > 0 ? (
@@ -310,12 +317,11 @@ const { data: walletClient } = useWalletClient();
               </div>
             )}
 
-            {/* Approve button to allow USDC spending */}
             {!approvalDone && (
               <Button
                 onClick={approveUSDC}
                 className="w-full mb-3 bg-yellow-600 hover:bg-yellow-700 text-white"
-                disabled={isApproving || !isConnected || !signer || !selectedInvoice}
+                disabled={isApproving || !isConnected || !provider || !selectedInvoice}
               >
                 {isApproving ? 'Approving...' : 'Approve USDC Spending'}
               </Button>
