@@ -77,21 +77,17 @@ export async function mintInvoiceOnChain(data) {
 
 
 export async function fundInvoiceOnChain({ investorAddress, nftId, amount, tokenSymbol }) {
-  const allTokens = getSupportedTokens; // make sure this is an array or a resolved function
+  const allTokens = getSupportedTokens;
   const tokenInfo = allTokens.find(t => t.symbol === tokenSymbol);
 
   if (!tokenInfo || !tokenInfo.address) {
     throw new Error(`Unsupported token: ${tokenSymbol}`);
   }
 
-  // Convert amount string to BigNumber with proper decimals
   const decimals = tokenInfo.decimals || 18;
-  const amountInWei = ethers.parseUnits(amount, decimals);
+  const amountInWei = ethers.parseUnits(amount.toString(), decimals);
 
-  // **IMPORTANT:** Do NOT approve here! Investor must approve before calling fundInvoice.
-
-  // Call fundInvoice function on VaultManager contract from backend wallet (signer)
-  const fundTx = await vaultManagerContract.fundInvoice(nftId);
+  const fundTx = await vaultManagerContract.fundInvoice(nftId, investorAddress, amountInWei);
   const receipt = await fundTx.wait();
 
   if (receipt.status !== 1) {

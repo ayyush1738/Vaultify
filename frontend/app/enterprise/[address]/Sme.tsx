@@ -38,6 +38,33 @@ export default function SMEDashboard() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [isLoadingInvoices, setIsLoadingInvoices] = useState(true);
   const [convertedAmount, setConvertedAmount] = useState<string | null>(null);
+  const [balances, setBalances] = useState<Record<string, string> | null>(null);
+  const [isLoadingBalances, setIsLoadingBalances] = useState(false);
+  const [balanceError, setBalanceError] = useState<string | null>(null);
+
+  // No changes are needed here. This code is correct.
+useEffect(() => {
+  if (!address || !isConnected) {
+    setBalances(null);
+    return;
+  }
+  
+  const fetchBalances = async () => {
+    try {
+      // This correctly creates the URL:
+      // /api/balances/balance?chainId=1&walletAddress=0x...
+      // This matches your server file's location.
+      const res = await axios.get(`/api/balances/balance?chainId=1&walletAddress=${address}`);
+      setBalances(res.data);
+    } catch {
+      setBalanceError('Failed to load balances.');
+      setBalances(null);
+    }
+  };
+
+  fetchBalances();
+}, [address, isConnected]);
+
 
   const chainId = useChainId();
   const API_BASE = process.env.NEXT_PUBLIC_API_URL;
@@ -235,6 +262,57 @@ export default function SMEDashboard() {
 
   return (
     <div className="min-h-screen bg-slate-900 text-white">
+    {isConnected && (
+    <Card className="bg-white/5 backdrop-blur-sm border-white/10 p-4">
+      <CardHeader>
+        <CardTitle>Your Token Balances</CardTitle>
+        <CardDescription className="text-slate-400">
+          Balances for address: {address}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {isLoadingBalances ? (
+          <div className="flex items-center gap-2 text-slate-400">
+            <Loader2 className="animate-spin h-4 w-4" />
+            Loading balances...
+          </div>
+        ) : balanceError ? (
+          <div className="text-red-500">{balanceError}</div>
+        ) : balances ? (
+          <div className="flex flex-wrap gap-4">
+            {Object.entries(balances)
+              // Filter out zero balances (string "0" or "0.0")
+              .filter(([, bal]) => {
+                try {
+                  // parseFloat check > 0 to handle decimal balances
+                  return parseFloat(bal) > 0;
+                } catch {
+                  return false;
+                }
+              })
+              .map(([tokenAddress, bal]) => {
+                // Find symbol using your supportedTokens config if available
+                const token = supportedTokens.find(t => t.address.toLowerCase() === tokenAddress.toLowerCase());
+                const symbol = token?.symbol || tokenAddress;
+                // Format balance nicely
+                const formattedBal = bal.includes('.') ? parseFloat(bal).toFixed(4) : bal;
+
+                return (
+                  <Badge
+                    key={tokenAddress}
+                    className="bg-purple-600/20 text-purple-400 border-purple-600/40 px-3 py-1"
+                  >
+                    {symbol}: {formattedBal}
+                  </Badge>
+                );
+              })}
+          </div>
+        ) : (
+          <div className="text-slate-400">No balances found.</div>
+        )}
+      </CardContent>
+    </Card>
+  )}
       <nav className="flex items-center justify-between p-4 md:p-6 backdrop-blur-sm border-b border-white/10 sticky top-0 z-50 bg-slate-900/80">
         <div className="flex items-center gap-4">
           <Link href="/">

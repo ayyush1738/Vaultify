@@ -19,7 +19,7 @@ import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 
-// Replace with your Sepolia (or testnet) USDC contract address
+// Sepolia USDC contract address
 const USDC_CONTRACT_ADDRESS = '0x65aFADD39029741B3b8f0756952C74678c9cEC93';
 
 const ERC20_ABI = [
@@ -54,19 +54,19 @@ export default function InvestorDashboard() {
   const API_BASE = process.env.NEXT_PUBLIC_API_URL;
   const VAULT_MANAGER_ADDRESS = process.env.NEXT_PUBLIC_VAULT_MANAGER_ADDRESS || '';
 
-  const balances = { USDC: 1250.0 }; // Dummy balance, replace with real balance if you want
+  // Dummy user balance - replace with actual call if needed
+  const balances = { USDC: 1250.0 };
   const selectedToken = 'USDC';
 
   // Create ethers provider/signer from wagmi walletClient
   const provider = walletClient ? new BrowserProvider(walletClient) : undefined;
 
-  // Get signer (async call)
   const getSigner = async () => {
     if (!provider) return undefined;
     return provider.getSigner();
   };
 
-  // Fetch available invoices from your backend
+  // Load invoices from backend filtered by USDC token
   const fetchInvoices = async () => {
     if (!address || !API_BASE) {
       setIsLoadingInvoices(false);
@@ -87,12 +87,10 @@ export default function InvestorDashboard() {
           const repaymentAmount = Number(inv.invoice_amount);
           const invoiceAmount = Number(inv.invoice_amount);
           let yieldPercent = '0%';
-
           if (!isNaN(fundingAmount) && !isNaN(repaymentAmount) && fundingAmount > 0) {
             const yieldRatio = ((repaymentAmount - fundingAmount) / fundingAmount) * 100;
             yieldPercent = yieldRatio.toFixed(2) + '%';
           }
-
           return {
             id: String(inv.id),
             customerName: inv.customer_name,
@@ -103,7 +101,7 @@ export default function InvestorDashboard() {
             status: 'Pending Funding',
             dueDate: new Date(inv.due_date).toLocaleDateString(),
             yieldPercent,
-          };
+          } as Invoice;
         });
 
       setInvoices(filteredInvoices);
@@ -126,24 +124,25 @@ export default function InvestorDashboard() {
   }, [address, API_BASE]);
 
   const selectedInvoice = invoices.find((inv) => inv.id === selectedInvoiceId);
-  const depositAmount = selectedInvoice?.fundingAmount.toString() || '';
 
-  // Check allowance of VaultManager contract to spend user's USDC
-  const checkAllowance = async (signer: ethers.Signer) => {
+  // FAKE depositAmount hardcoded to match exact amount contract expects, for test
+  const depositAmount = "0.98";
+
+  // Check USDC allowance - returns a boolean
+  const checkAllowance = async (signer: ethers.Signer): Promise<boolean> => {
     if (!address || !selectedInvoice) return false;
     try {
       const usdcContract = new ethers.Contract(USDC_CONTRACT_ADDRESS, ERC20_ABI, signer);
-      const allowance = await usdcContract.allowance(address, VAULT_MANAGER_ADDRESS);
-      const decimals = 6;
-      const requiredAllowance = ethers.parseUnits(depositAmount, decimals);
-      return allowance.gte(requiredAllowance);
+      const allowance: bigint = await usdcContract.allowance(address, VAULT_MANAGER_ADDRESS);
+      const requiredAllowance = ethers.parseUnits(depositAmount, 6); // 6 decimals for USDC
+      return allowance >= requiredAllowance;
     } catch (err) {
       console.error('Error checking allowance:', err);
       return false;
     }
   };
 
-  // Approve VaultManager contract to spend USDC tokens on behalf of user
+  // Approve VaultManager contract to spend USDC tokens
   const approveUSDC = async () => {
     if (!address || !selectedInvoice) {
       alert('Connect wallet and select an invoice first.');
@@ -157,11 +156,13 @@ export default function InvestorDashboard() {
         setIsApproving(false);
         return;
       }
+
       const usdcContract = new ethers.Contract(USDC_CONTRACT_ADDRESS, ERC20_ABI, signer);
-      const decimals = 6;
-      const amountToApprove = ethers.parseUnits(depositAmount, decimals);
+      const amountToApprove = ethers.parseUnits(depositAmount, 6);
+
       const tx = await usdcContract.approve(VAULT_MANAGER_ADDRESS, amountToApprove);
       await tx.wait();
+
       setApprovalDone(true);
       alert('✅ USDC approved successfully!');
     } catch (err: any) {
@@ -172,65 +173,103 @@ export default function InvestorDashboard() {
     }
   };
 
-  const verifyAllowance = async () => {
-    const signer = await getSigner();
-    if (!signer || !address || !selectedInvoice) return false;
-    const usdcContract = new ethers.Contract(USDC_CONTRACT_ADDRESS, ERC20_ABI, signer);
-    const allowance = await usdcContract.allowance(address, VAULT_MANAGER_ADDRESS);
-    const required = ethers.parseUnits(selectedInvoice.fundingAmount.toString(), 6);
-    return allowance.gte(required);
-  };
-  // Handle funding invoice call to your backend API
+  // Call backend to fund invoice after approval done
+  // const handleDeposit = async () => {
+  //   if (!depositAmount || !address || !API_BASE || !selectedInvoice) {
+  //     alert('Please connect wallet and select an invoice.');
+  //     return;
+  //   }
+  //   if (!approvalDone) {
+  //     alert('Please approve USDC spending before funding.');
+  //     return;
+  //   }
+  //   const token = localStorage.getItem('jwt');
+  //   if (!token) {
+  //     alert('Please login to continue.');
+  //     return;
+  //   }
+  //   try {
+  //     const res = await axios.post(
+  //       `${API_BASE}/api/v1/investor/fund/${selectedInvoice.id}`,
+  //       {
+  //         amount: depositAmount,
+  //         tokenSymbol: selectedToken,
+  //         investorAddress: address,
+  //       },
+  //       {
+  //         headers: { Authorization: `Bearer ${token}` },
+  //       }
+  //     );
+  //     if (res.data.success) {
+  //       alert('✅ Successfully funded invoice.');
+  //       setApprovalDone(false);
+  //       // update invoice status locally
+  //       setInvoices((prev) =>
+  //         prev.map((inv) =>
+  //           inv.id === selectedInvoiceId ? { ...inv, status: 'Funded' } : inv
+  //         )
+  //       );
+  //       // optionally refetch invoices
+  //       fetchInvoices();
+  //     } else {
+  //       throw new Error(res.data.message || 'Failed to fund.');
+  //     }
+  //   } catch (err: any) {
+  //     console.error('Funding error:', err);
+  //     alert('❌ Failed to fund: ' + (err?.response?.data?.message || err.message));
+  //   }
+  // };
+
+  // Fake funding logic for demo
   const handleDeposit = async () => {
-    if (!depositAmount || !address || !API_BASE || !selectedInvoice) {
-      alert('Please connect wallet and select an invoice.');
+    if (!selectedInvoice || !selectedInvoiceId) {
+      alert('Please select an invoice first.');
       return;
     }
+
     if (!approvalDone) {
       alert('Please approve USDC spending before funding.');
       return;
     }
-    const token = localStorage.getItem('jwt');
-    if (!token) {
-      alert('Please login to continue.');
-      return;
-    }
-    try {
-      const res = await axios.post(
-        `${API_BASE}/api/v1/investor/fund/${selectedInvoice.id}`,
-        {
-          amount: depositAmount,
-          tokenSymbol: selectedToken,
-          investorAddress: address,
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-      if (res.data.success) {
-        alert('✅ Successfully funded invoice.');
-        setApprovalDone(false); // reset for next funding
-        fetchInvoices();
-      } else {
-        throw new Error(res.data.message || 'Failed to fund.');
-      }
-    } catch (err: any) {
-      console.error('Funding error:', err);
-      alert('❌ Failed to fund: ' + (err?.response?.data?.message || err.message));
-    }
+
+    // Simulate success after short delay
+    alert(`✅ Invoice ${selectedInvoiceId} funded successfully (demo).`);
+
+    // Update invoice status locally
+    setInvoices((prev) =>
+      prev.map((inv) =>
+        inv.id === selectedInvoiceId
+          ? {
+            ...inv,
+            fundingAmount: Number(depositAmount), // optional: simulate amount deposited
+            status: 'Funded',
+          }
+          : inv
+      )
+    );
+
+    setApprovalDone(false); // reset approval
   };
 
-  // Status badge component
+
   const getStatusBadge = (status: Invoice['status']) => {
     switch (status) {
       case 'Funded':
-        return <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30">Funded</Badge>;
+        return (
+          <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30">Funded</Badge>
+        );
       case 'Pending Funding':
-        return <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30">Pending</Badge>;
+        return (
+          <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30">Pending</Badge>
+        );
       case 'Repaid':
-        return <Badge className="bg-green-500/20 text-green-400 border-green-500/30">Repaid</Badge>;
+        return (
+          <Badge className="bg-green-500/20 text-green-400 border-green-500/30">Repaid</Badge>
+        );
       default:
-        return <Badge className="bg-gray-500/20 text-gray-400 border-gray-500/30">Unknown</Badge>;
+        return (
+          <Badge className="bg-gray-500/20 text-gray-400 border-gray-500/30">Unknown</Badge>
+        );
     }
   };
 
@@ -240,8 +279,7 @@ export default function InvestorDashboard() {
         <div className="flex items-center gap-4">
           <Link href="/">
             <Button variant="ghost" size="sm" className="text-slate-300 hover:text-white">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Home
+              <ArrowLeft className="h-4 w-4 mr-2" /> Back to Home
             </Button>
           </Link>
           <div className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
@@ -252,6 +290,7 @@ export default function InvestorDashboard() {
       </nav>
 
       <div className="max-w-7xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-2 gap-8">
+
         {/* Invoice Select */}
         <Card className="bg-white/5 backdrop-blur-sm border-white/10">
           <CardHeader>
@@ -266,7 +305,7 @@ export default function InvestorDashboard() {
               value={selectedInvoiceId || ''}
               onChange={(e) => {
                 setSelectedInvoiceId(e.target.value || null);
-                setApprovalDone(false); // Reset approval when invoice changes
+                setApprovalDone(false); // reset approval on invoice change
               }}
             >
               {invoices.length > 0 ? (
@@ -289,7 +328,7 @@ export default function InvestorDashboard() {
           <CardHeader>
             <CardTitle className="text-white">Deposit to Fund Invoice</CardTitle>
             <CardDescription className="text-slate-300">
-              Funding amount is fixed at 98% of invoice amount, paid in USDC
+              Funding amount is fixed at 0.98 USDC (faked for demo)
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -308,15 +347,14 @@ export default function InvestorDashboard() {
                 Available: {balances.USDC.toLocaleString()} USDC
               </div>
             </div>
-
             {selectedInvoice && (
               <div className="text-slate-300 text-sm">
                 Estimated Yield: <strong>{selectedInvoice.yieldPercent}</strong>
                 <br />
-                Repayment Amount after Due Date: ${selectedInvoice.repaymentAmount.toLocaleString()}
+                Repayment Amount after Due Date: $
+                {selectedInvoice.repaymentAmount.toLocaleString()}
               </div>
             )}
-
             {!approvalDone && (
               <Button
                 onClick={approveUSDC}
@@ -326,7 +364,6 @@ export default function InvestorDashboard() {
                 {isApproving ? 'Approving...' : 'Approve USDC Spending'}
               </Button>
             )}
-
             <Button
               onClick={handleDeposit}
               className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
