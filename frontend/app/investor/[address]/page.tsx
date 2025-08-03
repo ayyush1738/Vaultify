@@ -18,7 +18,7 @@ import Link from 'next/link';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount } from 'wagmi';
 
-// Invoice type definition expects amounts as number
+// Invoice type expects amounts as numbers
 type Invoice = {
   id: string;
   customerName: string;
@@ -40,15 +40,15 @@ export default function InvestorDashboard() {
 
   const API_BASE = process.env.NEXT_PUBLIC_API_URL;
 
-  // Fixed token is USDC only
+  // Fixed token: USDC only
   const selectedToken = 'USDC';
 
-  // Mocked balances: Replace with real wallet balance fetch if needed
+  // Mock wallet balance (replace with real data if needed)
   const balances = {
     USDC: 1250.0,
   };
 
-  // Fetch invoices filtered for USDC only with safe parsing and yield calculation
+  // Fetch invoices from backend and map correctly
   const fetchInvoices = async () => {
     if (!address || !API_BASE) {
       setIsLoadingInvoices(false);
@@ -67,12 +67,16 @@ export default function InvestorDashboard() {
       const filteredInvoices = res.data.invoices
         .filter((inv: any) => inv.preferred_token_symbol === 'USDC')
         .map((inv: any) => {
-          const fundingAmount = Number(inv.funding_amount);
-          const repaymentAmount = Number(inv.repayment_amount);
+          const fundingAmount = Number(inv.funded_amount);
+          const repaymentAmount = Number(inv.invoice_amount); // assume repayment = invoice amount if no field given
           const invoiceAmount = Number(inv.invoice_amount);
           let yieldPercent = '0%';
 
-          if (!isNaN(fundingAmount) && !isNaN(repaymentAmount) && fundingAmount > 0) {
+          if (
+            !isNaN(fundingAmount) &&
+            !isNaN(repaymentAmount) &&
+            fundingAmount > 0
+          ) {
             const yieldRatio = ((repaymentAmount - fundingAmount) / fundingAmount) * 100;
             yieldPercent = yieldRatio.toFixed(2) + '%';
           }
@@ -84,7 +88,7 @@ export default function InvestorDashboard() {
             fundingAmount,
             repaymentAmount,
             preferredTokenSymbol: inv.preferred_token_symbol,
-            status: 'Pending Funding', // you may want to get status from backend
+            status: 'Pending Funding', // or from API if available
             dueDate: new Date(inv.due_date).toLocaleDateString(),
             yieldPercent,
           };
@@ -113,8 +117,6 @@ export default function InvestorDashboard() {
 
   const depositAmount = selectedInvoice?.fundingAmount.toString() || '';
 
-  console.log(depositAmount)
-
   const handleDeposit = async () => {
     if (!depositAmount || !address || !API_BASE || !selectedInvoice) {
       alert('Please connect wallet and select an invoice.');
@@ -133,8 +135,7 @@ export default function InvestorDashboard() {
         {
           amount: depositAmount,
           tokenSymbol: selectedToken,
-          investorAddress: address, // <-- ADD THIS LINE
-
+          investorAddress: address,
         },
         {
           headers: {

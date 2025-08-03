@@ -35,7 +35,7 @@ export const fundInvoice = async (req, res) => {
     const result = await blockchainService.fundInvoiceOnChain({
       investorAddress,
       nftId: invoice.nft_id, // <--- USE THE CORRECT ID
-      amount: invoice.fundingAmount, // Note: You were sending invoice_amount before
+      amount: invoice.funded_amount, // Note: You were sending invoice_amount before
       tokenSymbol: invoice.preferred_token_symbol,
     });
 
