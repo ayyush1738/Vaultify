@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import { ethers } from 'ethers';
+import { useAccount, useWalletClient  } from 'wagmi';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -16,39 +18,50 @@ import { Badge } from '@/components/ui/badge';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { useAccount } from 'wagmi';
 
-// Invoice type expects amounts as numbers
+// USDC token contract address and minimal ABI for approve
+const USDC_CONTRACT_ADDRESS = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'; // Mainnet USDC address, change if needed
+
+const ERC20_ABI = [
+  'function approve(address spender, uint256 amount) external returns (bool)',
+  'function allowance(address owner, address spender) external view returns (uint256)',
+  'function decimals() view returns (uint8)',
+];
+
 type Invoice = {
   id: string;
   customerName: string;
   invoiceAmount: number;
   fundingAmount: number;
   repaymentAmount: number;
-  preferredTokenSymbol: string; // Should always be 'USDC' here
+  preferredTokenSymbol: string; // Should be 'USDC'
   status: 'Pending Funding' | 'Funded' | 'Repaid';
   dueDate: string;
-  yieldPercent: string; // calculated as string with %
+  yieldPercent: string;
 };
 
 export default function InvestorDashboard() {
   const { address, isConnected } = useAccount();
+const { data: walletClient } = useWalletClient();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [isLoadingInvoices, setIsLoadingInvoices] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
+  const [isApproving, setIsApproving] = useState(false);
+  const [approvalDone, setApprovalDone] = useState(false);
 
   const API_BASE = process.env.NEXT_PUBLIC_API_URL;
-
-  // Fixed token: USDC only
-  const selectedToken = 'USDC';
 
   // Mock wallet balance (replace with real data if needed)
   const balances = {
     USDC: 1250.0,
   };
+  
+  const signer = walletClient ? new ethers.providers.Web3Provider(walletClient).getSigner() : undefined;
 
-  // Fetch invoices from backend and map correctly
+
+  const selectedToken = 'USDC';
+
   const fetchInvoices = async () => {
     if (!address || !API_BASE) {
       setIsLoadingInvoices(false);
@@ -59,24 +72,18 @@ export default function InvestorDashboard() {
     try {
       const token = localStorage.getItem('jwt') || '';
       const res = await axios.get(`${API_BASE}/api/v1/investor/available`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       const filteredInvoices = res.data.invoices
         .filter((inv: any) => inv.preferred_token_symbol === 'USDC')
         .map((inv: any) => {
           const fundingAmount = Number(inv.funded_amount);
-          const repaymentAmount = Number(inv.invoice_amount); // assume repayment = invoice amount if no field given
+          const repaymentAmount = Number(inv.invoice_amount);
           const invoiceAmount = Number(inv.invoice_amount);
           let yieldPercent = '0%';
 
-          if (
-            !isNaN(fundingAmount) &&
-            !isNaN(repaymentAmount) &&
-            fundingAmount > 0
-          ) {
+          if (!isNaN(fundingAmount) && !isNaN(repaymentAmount) && fundingAmount > 0) {
             const yieldRatio = ((repaymentAmount - fundingAmount) / fundingAmount) * 100;
             yieldPercent = yieldRatio.toFixed(2) + '%';
           }
@@ -88,7 +95,7 @@ export default function InvestorDashboard() {
             fundingAmount,
             repaymentAmount,
             preferredTokenSymbol: inv.preferred_token_symbol,
-            status: 'Pending Funding', // or from API if available
+            status: 'Pending Funding',
             dueDate: new Date(inv.due_date).toLocaleDateString(),
             yieldPercent,
           };
@@ -114,9 +121,48 @@ export default function InvestorDashboard() {
   }, [address, API_BASE]);
 
   const selectedInvoice = invoices.find((inv) => inv.id === selectedInvoiceId);
-
   const depositAmount = selectedInvoice?.fundingAmount.toString() || '';
 
+  // Function to check allowance
+  const checkAllowance = async () => {
+    if (!signer || !address || !selectedInvoice) return false;
+    try {
+      const usdcContract = new ethers.Contract(USDC_CONTRACT_ADDRESS, ERC20_ABI, signer);
+      const allowance = await usdcContract.allowance(address, /*spender*/ process.env.NEXT_PUBLIC_VAULT_MANAGER_ADDRESS);
+      // USDC usually 6 decimals, so parse depositAmount accordingly
+      const decimals = await usdcContract.decimals();
+      const requiredAllowance = ethers.parseUnits(depositAmount, decimals);
+      return allowance.gte(requiredAllowance);
+    } catch (err) {
+      console.error('Error while checking allowance:', err);
+      return false;
+    }
+  };
+
+  // Function to approve spending
+  const approveUSDC = async () => {
+    if (!signer || !selectedInvoice) {
+      alert('Connect wallet and select an invoice first.');
+      return;
+    }
+    setIsApproving(true);
+    try {
+      const usdcContract = new ethers.Contract(USDC_CONTRACT_ADDRESS, ERC20_ABI, signer);
+      const decimals = await usdcContract.decimals();
+      const amountToApprove = ethers.parseUnits(depositAmount, decimals);
+      const tx = await usdcContract.approve(process.env.NEXT_PUBLIC_VAULT_MANAGER_ADDRESS!, amountToApprove);
+      await tx.wait();
+      setApprovalDone(true);
+      alert('✅ USDC approved successfully!');
+    } catch (err: any) {
+      console.error('Approval failed:', err);
+      alert('❌ Approval failed: ' + (err.message || err));
+    } finally {
+      setIsApproving(false);
+    }
+  };
+
+  // Handle the full deposit flow
   const handleDeposit = async () => {
     if (!depositAmount || !address || !API_BASE || !selectedInvoice) {
       alert('Please connect wallet and select an invoice.');
@@ -129,6 +175,19 @@ export default function InvestorDashboard() {
       return;
     }
 
+    if (!signer) {
+      alert('Please connect your wallet.');
+      return;
+    }
+
+    // Check allowance and approve if necessary
+    const hasAllowance = await checkAllowance();
+    if (!hasAllowance) {
+      alert('USDC approval required. Please approve before funding.');
+      return;
+    }
+
+    // Proceed to fund
     try {
       const res = await axios.post(
         `${API_BASE}/api/v1/investor/fund/${selectedInvoice.id}`,
@@ -138,14 +197,13 @@ export default function InvestorDashboard() {
           investorAddress: address,
         },
         {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { Authorization: `Bearer ${token}` },
         }
       );
 
       if (res.data.success) {
         alert('✅ Successfully funded invoice.');
+        setApprovalDone(false); // Reset approval flag for next funding
         fetchInvoices();
       } else {
         throw new Error(res.data.message || 'Failed to fund.');
@@ -199,7 +257,10 @@ export default function InvestorDashboard() {
             <select
               className="w-full bg-white/5 border-white/10 text-white p-2 rounded"
               value={selectedInvoiceId || ''}
-              onChange={(e) => setSelectedInvoiceId(e.target.value || null)}
+              onChange={(e) => {
+                setSelectedInvoiceId(e.target.value || null);
+                setApprovalDone(false); // reset approval when invoice changes
+              }}
             >
               {invoices.length > 0 ? (
                 invoices.map((inv) => (
@@ -249,10 +310,21 @@ export default function InvestorDashboard() {
               </div>
             )}
 
+            {/* Approve button to allow USDC spending */}
+            {!approvalDone && (
+              <Button
+                onClick={approveUSDC}
+                className="w-full mb-3 bg-yellow-600 hover:bg-yellow-700 text-white"
+                disabled={isApproving || !isConnected || !signer || !selectedInvoice}
+              >
+                {isApproving ? 'Approving...' : 'Approve USDC Spending'}
+              </Button>
+            )}
+
             <Button
               onClick={handleDeposit}
               className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
-              disabled={!depositAmount || !isConnected || !selectedInvoice}
+              disabled={!depositAmount || !isConnected || !selectedInvoice || !approvalDone}
             >
               Fund Invoice
             </Button>
